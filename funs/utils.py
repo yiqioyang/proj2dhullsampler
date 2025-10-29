@@ -12,8 +12,26 @@ from shapely import points, contains
 
 
 
+
+
+from scipy.spatial import Delaunay
+
+import numpy as np
+import numpy as np
+import matplotlib.pyplot as plt
+import alphashape
+from shapely.geometry import Point
+
+
+
+
+
 def compute_mi_pair(col_x, col_y):
-    """Function to compute MI between two Series."""
+    """
+    Calculate the Mutual Information between two d series
+    xxTest whether it is used laterxx
+    """
+    
     x = col_x.values.reshape(-1, 1)
     y = col_y.values
     mi = mutual_info_regression(x, y, discrete_features=False)
@@ -21,9 +39,14 @@ def compute_mi_pair(col_x, col_y):
 
 
 
-
-
 def distribution_difference(df1, df2, bins=100):
+    ''''
+    A simple way to calculate the "distribution difference" for each column of the pd dataframes using np.histogram
+    Inputs:
+        df1: the surviving ensemble members for each climatology (pd dataframes).
+        df2: normally the original randomly sampled ensemble members (pd dataframes).
+    Used to determine what parameters are varied after constraining by certain parameters
+    ''''
     abs_den_diff = {}
     for column in df1.columns:
         hist1, bin_edges1 = np.histogram(df1[column], bins=bins, density=True, range = (0,1))
@@ -32,22 +55,26 @@ def distribution_difference(df1, df2, bins=100):
         abs_den_diff[column] = np.sum(abs(hist1 - hist2))
 
     output = pd.Series(abs_den_diff)
-    
+
     return pd.Series(output)
 
 
 
-def filter_per_critical_para(tf_masks, sel_local_var, no_sample = 3):
-    output_pd = []
-    index_names = np.arange(no_sample).astype(str).tolist() + ["count"]
-    for vars1 in list(combinations(sel_local_var, no_sample)):
-        sel_vars = list(vars1)
-        sel_vars.append(tf_masks[sel_vars].all(axis = 1).sum())
-        output_pd.append(pd.Series(sel_vars, index = index_names))
 
-    output_pd = pd.concat(output_pd, axis = 1).transpose()
-    output_pd = output_pd.sort_values("count")
-    return output_pd
+# def filter_per_critical_para(tf_masks, sel_local_var, no_sample = 3):
+#     ### ?? xxxx ####
+#     output_pd = []
+#     index_names = np.arange(no_sample).astype(str).tolist() + ["count"]
+#     for vars1 in list(combinations(sel_local_var, no_sample)):
+#         sel_vars = list(vars1)
+#         sel_vars.append(tf_masks[sel_vars].all(axis = 1).sum())
+#         output_pd.append(pd.Series(sel_vars, index = index_names))
+
+#     output_pd = pd.concat(output_pd, axis = 1).transpose()
+#     output_pd = output_pd.sort_values("count")
+#     return output_pd
+
+
 
 
 def get_top_2_info(row, n_large):
@@ -70,6 +97,8 @@ def get_top_2_info(row, n_large):
             'toppara2': top2.index[1],
             'diff2': top2.iloc[1]
         })
+
+
 
 
 def column_with_smallest_std(df, tf_masks, vars = np.NAN, group3_threshold = 5000, n_large = 3):
@@ -492,6 +521,9 @@ def dist_cal(pt1, pt2):
     dist = (np.sum((pt1 - pt2) **2))**0.5
     return dist
 
+
+
+
 def circum_radius_calculation(pta, ptb, ptc, ptd):
     vol_mat = np.vstack([pta, ptb, ptc, ptd]).transpose()
     vol_mat = np.vstack([vol_mat, np.array([1,1,1,1])])
@@ -523,14 +555,6 @@ def circum_center_calculation(pta, ptb, ptc, ptd):
     circuncenter_xyz = np.linalg.inv(A) @ B
     return circuncenter_xyz.flatten()
 
-
-from scipy.spatial import Delaunay
-
-import numpy as np
-import numpy as np
-import matplotlib.pyplot as plt
-import alphashape
-from shapely.geometry import Point
 
 def alpha_shape2d(points, alpha, only_outer=True):
     """
