@@ -12,6 +12,9 @@ from shapely import points, contains
 
 
 
+from sklearn.gaussian_process import GaussianProcessRegressor
+from sklearn.gaussian_process.kernels import Matern, WhiteKernel, ConstantKernel as C
+
 
 
 from scipy.spatial import Delaunay
@@ -21,6 +24,35 @@ import numpy as np
 import matplotlib.pyplot as plt
 import alphashape
 from shapely.geometry import Point
+import joblib
+
+
+def gp_training_application(X, Y, y_name, X_emu, path = "/glade/work/qingyuany/repo_data/spatialtuning/", no_sen = 2, no_restart = 10):
+    y = Y[y_name]
+    y_norm = (y - y.mean())/y.std()
+
+    if ~(np.isnan(y_norm).all()):
+        sage1d_temp = fit_all_gp_models_1d(y_norm.values, X.values, len1d = 0.4)
+        print(sage1d_temp)
+        sel_para_ind = sage1d_temp[:(no_sen * 2):2].astype(int)
+
+        #sel_para_ind = sel_para_ind.reshape(1,-1)
+
+        kernel = C(1.0, (1e-3, 1)) * Matern(length_scale=0.001, nu=2.5, length_scale_bounds=(0.1, 3)) + WhiteKernel(noise_level=0.5, noise_level_bounds=(0.01, 0.9))
+        gp = GaussianProcessRegressor(kernel=kernel, n_restarts_optimizer= no_restart, normalize_y=True)
+        
+        gp.fit(X.values[:,sel_para_ind], y_norm.values)
+        
+        joblib.dump(gp, path + "python_obj/" + y_name + "_gpmodel.pkl")
+
+        y_mean_emu, y_std_emu = gp.predict(X_emu.values[:,sel_para_ind], return_std=True)
+
+        pd.DataFrame(y_mean_emu, columns=[y_name]).to_csv(path + "emulated_ensemble" + "/gp_mean_" + y_name + ".csv")
+        pd.DataFrame(y_std_emu, columns=[y_name]).to_csv(path + "emulated_ensemble" + "/gp_std_" + y_name + ".csv")
+
+        return ([y_name, sel_para_ind])
+
+        
 
 
 
