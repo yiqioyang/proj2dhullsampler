@@ -24,6 +24,24 @@ from shapely.geometry import Point
 
 
 
+def fit_gp_for_single_1d(y, X, i, length_scale=0.5):
+    """Fits a GP model for a given pair of feature indices."""
+    
+    X_single = X[:, [i]].reshape([-1,1])  # Select the two features
+    
+    # Define GP kernel
+    kernel =  Matern(length_scale=length_scale, 
+                     length_scale_bounds="fixed", nu = 2.5)  + WhiteKernel(noise_level = 1.0)
+    
+    # Fit GP model
+    gp = GaussianProcessRegressor(kernel=kernel, optimizer=None)
+    gp.fit(X_single, y.ravel())  # Flatten y
+
+    y_pred = gp.predict(X_single, return_std = False)
+    residual_sd = (y - y_pred).std()
+    
+    return (i, residual_sd)
+
 def fit_all_gp_models_1d(y, X, len1d = 0.5):
     """Fits GP models for all unique feature pairs and stores residual std."""
     residual_single_stds = {}
