@@ -2,7 +2,7 @@
 import matplotlib.pyplot as plt
 
 def biplot(dfs, subsample_size = 5000, figsize = (30, 30)):
-    ''''
+    """
     Purpose: visualize the sampled/PPE/CPE NORMALIZED parameters from biplots
     Inputs: 
         dfs:                A list of pd dataframes or a single pd dataframe
@@ -10,9 +10,8 @@ def biplot(dfs, subsample_size = 5000, figsize = (30, 30)):
                             samples (# of rows) within the pd dataframes is above this value. 
     Note:
         x and y axes are constrained to range from 0-1
-
-                            
-    ''''
+                    
+    """
     if isinstance(dfs, pd.DataFrame):
         dfs = [dfs]
 
@@ -21,7 +20,7 @@ def biplot(dfs, subsample_size = 5000, figsize = (30, 30)):
 
     
     for df in dfs:
-        if df.shape[0] > subsample_size
+        if df.shape[0] > subsample_size:
             df = df.sample(subsample_size)
         
         for i, row_col in enumerate(df.columns):
@@ -58,7 +57,7 @@ def biplot(dfs, subsample_size = 5000, figsize = (30, 30)):
 
 def biplot_original_scale(dfs, subsample_size = 5000, figsize = (50, 50)):
 
-    ''''
+    '''
     Purpose: visualize the sampled/PPE/CPE ORIGINAL-SCALED parameters from biplots
     Inputs: 
         dfs:                A list of pd dataframes or a single pd dataframe
@@ -66,7 +65,7 @@ def biplot_original_scale(dfs, subsample_size = 5000, figsize = (50, 50)):
                             samples (# of rows) within the pd dataframes is above this value. 
 
                             
-    ''''
+    '''
 
     if isinstance(dfs, pd.DataFrame):
         dfs = [dfs]

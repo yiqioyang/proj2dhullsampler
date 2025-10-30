@@ -24,6 +24,27 @@ from shapely.geometry import Point
 
 
 
+def fit_all_gp_models_1d(y, X, len1d = 0.5):
+    """Fits GP models for all unique feature pairs and stores residual std."""
+    residual_single_stds = {}
+    
+    y_std = y.std()
+    
+    feature_single = itertools.combinations(range(X.shape[1]), 1)
+    
+
+    for i in feature_single:
+        residual_single_stds[(i)] = y_std - fit_gp_for_single_1d(y, X, i, len1d)[1]  # Store only the residual std
+
+    
+    sorted_delta = sorted(residual_single_stds.items(), key=lambda x: x[1], reverse=True)
+    top_10 = dict(sorted_delta[:20])
+
+
+    output = np.array([k + (v,) for k, v in top_10.items()]).flatten()
+    
+    return output
+
 
 
 def compute_mi_pair(col_x, col_y):
@@ -40,13 +61,13 @@ def compute_mi_pair(col_x, col_y):
 
 
 def distribution_difference(df1, df2, bins=100):
-    ''''
+    '''
     A simple way to calculate the "distribution difference" for each column of the pd dataframes using np.histogram
     Inputs:
         df1: the surviving ensemble members for each climatology (pd dataframes).
         df2: normally the original randomly sampled ensemble members (pd dataframes).
     Used to determine what parameters are varied after constraining by certain parameters
-    ''''
+    '''
     abs_den_diff = {}
     for column in df1.columns:
         hist1, bin_edges1 = np.histogram(df1[column], bins=bins, density=True, range = (0,1))
