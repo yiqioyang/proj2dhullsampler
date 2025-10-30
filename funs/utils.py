@@ -220,7 +220,7 @@ def column_with_smallest_std(df, tf_masks, vars = np.NAN, group3_threshold = 500
 
     return localvars_grouped_by_3paras, strt_para3_localvar, surv_para3_localvar
 
-        
+
 
 
 
@@ -230,7 +230,6 @@ def strterr_localvar_detection(strt_para3_localvars, tf_masks, n_comb3 = 2):
 
     for para3s, ks in tqdm(list(strt_para3_localvars.items())):
         
-    
         localvars_temp = ks    
         pd_list = []
         
@@ -243,6 +242,8 @@ def strterr_localvar_detection(strt_para3_localvars, tf_masks, n_comb3 = 2):
         summary_table_3to3[para3s] = pd_list
 
     return summary_table_3to3
+
+
 
 
 def para1_para3_dict_generationg(surv_para3_localvars, tf_masks, emu_para):
