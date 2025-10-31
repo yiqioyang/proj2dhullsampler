@@ -54,8 +54,6 @@ def gp_training_application(X, Y, y_name, X_emu, path = "/glade/work/qingyuany/r
 
         
 
-
-
 def fit_gp_for_single_1d(y, X, i, length_scale=0.5):
     """Fits a GP model for a given pair of feature indices."""
     
@@ -73,6 +71,8 @@ def fit_gp_for_single_1d(y, X, i, length_scale=0.5):
     residual_sd = (y - y_pred).std()
     
     return (i, residual_sd)
+
+
 
 def fit_all_gp_models_1d(y, X, len1d = 0.5):
     """Fits GP models for all unique feature pairs and stores residual std."""
@@ -110,7 +110,7 @@ def compute_mi_pair(col_x, col_y):
 
 
 
-def distribution_difference(df1, df2, bins=100):
+def dist_diff(df1, df2, bins=100):
     '''
     A simple way to calculate the "distribution difference" for each column of the pd dataframes using np.histogram
     Inputs:
@@ -148,207 +148,168 @@ def distribution_difference(df1, df2, bins=100):
 
 
 
-def get_top_2_info(row, n_large):
-    top2 = row.nlargest(n_large)
-    if n_large == 3:
+def get_top_2_info(row, n_para):
+    top2 = row.nlargest(n_para)
+    if n_para == 3:
         return pd.Series({
             "localvar": row.name,
-            'topvpara1': top2.index[0],
+            'para1': top2.index[0],
             'diff1': top2.iloc[0],
-            'toppara2': top2.index[1],
+            'para2': top2.index[1],
             'diff2': top2.iloc[1],
-            'toppara3': top2.index[2],
+            'para3': top2.index[2],
             'diff3': top2.iloc[2]
         })
-    if n_large == 2:
+    if n_para == 2:
         return pd.Series({
             "localvar": row.name,
-            'topvpara1': top2.index[0],
+            'para1': top2.index[0],
             'diff1': top2.iloc[0],
-            'toppara2': top2.index[1],
+            'para2': top2.index[1],
             'diff2': top2.iloc[1]
         })
 
 
 
 
-def column_with_smallest_std(df, tf_masks, vars = np.NAN, group3_threshold = 5000, n_large = 3):
+def group_para_climatology(df, tf_masks, vars = np.NAN, threshold = 5000, n_para = 3):
     
     if isinstance(vars, list):
        vars = vars
     else:
         vars = list(tf_masks.columns)
     
-    output_ddiff = []
-    output_info = []
+    ddiff = []
+    
     for var in tqdm(vars):
         df_s = df[tf_masks[var]]
-        
-        output_ddiff.append(distribution_difference(df_s, df.sample(n = 10000)))
+        ddiff.append(dist_diff(df_s, df.sample(n = 10000)))
 
-
-        #temp_info = compute_pairwise_mi_parallel(df_s, para_nm, n_jobs = 64).iloc[:2,1:-1]
-        #temp_info["localvar"] = var
-        #output_info.append(temp_info)
-
-        
             
-    output_ddiff = pd.concat(output_ddiff, axis = 1)
-    output_ddiff.columns = vars
-    output_ddiff = output_ddiff.transpose().apply(get_top_2_info, args = (n_large,), axis = 1)
+    ddiff = pd.concat(ddiff, axis = 1)
+    ddiff.columns = vars
+    ddiff = ddiff.transpose().apply(get_top_2_info, args = (n_para,), axis = 1)
     
-    #output_info = pd.concat(output_info, axis = 0)
-
-    if n_large == 3:
-        output_ddiff["grouped_keys"] = output_ddiff[["topvpara1", "toppara2", "toppara3"]].apply(lambda row: tuple(sorted(row)), axis = 1)
-    if n_large == 2:
-        output_ddiff["grouped_keys"] = output_ddiff[["topvpara1", "toppara2"]].apply(lambda row: tuple(sorted(row)), axis = 1)
+    if n_para == 3:
+        ddiff["grouped_keys"] = ddiff[["para1", "para2", "para3"]].apply(lambda row: tuple(sorted(row)), axis = 1)
+    if n_para == 2:
+        ddiff["grouped_keys"] = ddiff[["para1", "para2"]].apply(lambda row: tuple(sorted(row)), axis = 1)
         
-    localvars_grouped_by_3paras = output_ddiff.groupby("grouped_keys").localvar.apply(list).to_dict()
+    paras_cli_dict = ddiff.groupby("grouped_keys").localvar.apply(list).to_dict()
     
-
-
-    strt_para3_localvar = {}
-    surv_para3_localvar = {}
-    for k, v in localvars_grouped_by_3paras.items():
+    strt_paras_cli_dict = {}
+    surv_paras_cli_dict = {}
+    for k, v in paras_cli_dict.items():
 
         print(f"{k}: {tf_masks[v].all(axis = 1).sum()}")
-        if tf_masks[v].all(axis = 1).sum() < group3_threshold :
-            strt_para3_localvar[k] = v
+        if tf_masks[v].all(axis = 1).sum() < threshold :
+            strt_paras_cli_dict[k] = v
         else:
-            surv_para3_localvar[k] = v
+            surv_paras_cli_dict[k] = v
 
-    return localvars_grouped_by_3paras, strt_para3_localvar, surv_para3_localvar
-
-
+    return paras_cli_dict, strt_paras_cli_dict, surv_paras_cli_dict
 
 
 
-def strterr_localvar_detection(strt_para3_localvars, tf_masks, n_comb3 = 2):
-    summary_table_3to3 = {}
 
+def strterr_detection(paras_vars, tf_masks, n_comb = 2):
+    summary_table = {}
 
-    for para3s, ks in tqdm(list(strt_para3_localvars.items())):
+    for para3s, vars in tqdm(list(paras_vars.items())):
         
-        localvars_temp = ks    
+        vars_temp = vars 
         pd_list = []
         
-        for localvars_it in tqdm(combinations(localvars_temp, n_comb3)):
-            pd_list.append(list(localvars_it) + [tf_masks[list(localvars_it)].all(axis = 1).sum()])
+        for vars_comb in combinations(vars_temp, n_comb):
+            pd_list.append(list(vars_comb) + [tf_masks[list(vars_comb)].all(axis = 1).sum()])
             
-        pd_list = pd.DataFrame(pd_list, columns = [f"var{i+1}" for i in range(n_comb3)] + ["cunt"])
-        pd_list = pd_list.sort_values(by = "cunt")
+        pd_list = pd.DataFrame(pd_list, columns = [f"var{i+1}" for i in range(n_comb)] + ["count"])
+        pd_list = pd_list.sort_values(by = "count")
+        
+        
+        summary_table[para3s] = pd_list
+
+    return summary_table
+
+
+
+
+
+def range_err_detection(paras_vars, tf_masks, emu_para):
+    paras = list(set([x for tup in list(paras_vars.keys()) for x in tup]))
+    paras3 = list(paras_vars.keys())
     
-        summary_table_3to3[para3s] = pd_list
-
-    return summary_table_3to3
-
-
-
-
-def para1_para3_dict_generationg(surv_para3_localvars, tf_masks, emu_para):
-
-    modified_paras = list(set([x for tup in list(surv_para3_localvars.keys()) for x in tup]))
-    set_para3 = list(surv_para3_localvars.keys())
-    
-    single_dict = {}
-    for p in modified_paras:
+    para1_dict = {} # xx Check if the para3s are sorted
+    for p in paras:
         p = set([p])
-        temp_list = [t for t in set_para3 if p.issubset(t)]
+        temp_list = [t for t in paras3 if p.issubset(t)]
 
         if len(temp_list) > 0:
-            single_dict[tuple(p)] = temp_list
+            para1_dict[tuple(p)] = temp_list
 
 
-    single_min_max_range = {}
-    para1_localvars_dict = {}
+    para1_min_max_range = {}
+    para1_vars_dict = {}
     
-    for p1, p3s in list(single_dict.items()):
+    for p1, p3s in list(para1_dict.items()):
         pts_list = []
-        localvar_list = []
+        p_vars = []
         for p3 in p3s:
-
             
-            temp_localvars = surv_para3_localvars[p3]
+            vars3 = paras_vars[p3]
+            p_vars.extend(vars3)
             
-            localvar_list.extend(temp_localvars)
-            
-            temp_pts = emu_para[tf_masks[temp_localvars].all(axis = 1)]
+            temp_pts = emu_para[tf_masks[vars3].all(axis = 1)]
             if temp_pts.shape[0] > 40000:
                 temp_pts = temp_pts.sample(40000)
             pts_list.append(temp_pts[list(p1)].values)
 
-        para1_localvars_dict[p1] = localvar_list
+        para1_vars_dict[p1] = p_vars
         temp_min  = np.array([lst.min() for lst in pts_list])
         temp_max  = np.array([lst.max() for lst in pts_list])
-        single_min_max_range[p1] = [temp_min.max(), temp_max.min()]
+        para1_min_max_range[p1] = [temp_min.max(), temp_max.min()]
 
 
-    print([v for v, k in single_min_max_range.items() if k[1] - k[0] < 0])
+    print([v for v, k in para1_min_max_range.items() if k[1] - k[0] < 0])
     
+    return para1_vars_dict, para1_min_max_range
+
+
+
+def para1_error_localvar_detection(para1_vars_dict, p, emu_para, tf_masks, n_comb = 1):
+
+    p = [p]
+    vars = para1_vars_dict[tuple(p)]
     
-    return para1_localvars_dict, single_min_max_range
 
+    vars_min_max = []
+    print(len(vars))
+    for var_comb in list(combinations(vars, n_comb)):
+        used_vars = [v for v in vars if v not in var_comb]
+        print(len(used_vars))
+        pts_list = [emu_para[tf_masks[v]][p] for v in used_vars]
+        pts_max = min([pts.max().values for pts in pts_list])
+        pts_min = max([pts.min().values for pts in pts_list])
 
+        vars_min_max.append(pd.Series([var_comb, pts_min, pts_max]))
 
-
-def para1_error_localvar_detection(para1_localvars_dict, para_interest, emu_para,tf_masks, no_comb = 1):
-    para_interest = tuple([para_interest])
-    localvars_interest = para1_localvars_dict[para_interest]
-
-    para1_range = []
-
-    temp_min = []
-    temp_max = []
+    output = pd.DataFrame(vars_min_max)
+    output.columns = ["excluded_vars", "min", "max"]
+    output_f = output[output["min"] > output["max"]]
+    return output, output_f
     
-    var_name1 = ["var_" + str(i) for i in np.arange(1)] + ["min"] + ["max"]
-    var_name2 = ["exclude_var_" + str(i) for i in np.arange(no_comb)] + ["min"] + ["max"]
-    
-    for localvars_a in tqdm(list(combinations(localvars_interest, 1))):
-        localvars_a = list(localvars_a)
-        sub_samples = emu_para[tf_masks[localvars_a].all(axis = 1)][list(para_interest)]
-        if sub_samples.shape[0] > 40000:
-            sub_samples = sub_samples.sample(40000)
-            
-        localvars_a.extend([sub_samples.min().values[0], sub_samples.max().values[0]])
-        para1_range.append(localvars_a)
 
+#xxx Oct 31st
 
-    para1_range = pd.DataFrame(para1_range)
-    para1_range.columns = var_name1
-
-
-    paran_exclude_min_max = []
-
-
-    for exclude_inds in combinations(np.arange(para1_range.shape[0]), no_comb):
-        exclude_inds = list(exclude_inds)
-        keep_indx = np.setdiff1d(np.arange(para1_range.shape[0]), exclude_inds)
-        temp_minmax = para1_range.iloc[keep_indx, :]
-        
-        temp_min, temp_max = temp_minmax["min"].max(), temp_minmax["max"].min()
-        per_row = [para1_range.iloc[i,0] for i in exclude_inds] + [temp_min, temp_max]
-        paran_exclude_min_max.append(per_row)
-    
-    paran_exclude_min_max = pd.DataFrame(paran_exclude_min_max)
-    paran_exclude_min_max.columns = var_name2
-
-    paran_exclude_min_max_sel = paran_exclude_min_max[paran_exclude_min_max["max"] - paran_exclude_min_max["min"] > 0]
-    
-    return paran_exclude_min_max_sel
-
-
-
-def para1_para2_dict_generation(surv_para3_localvar, tf_masks, emu_para, shape_alpha = 7):
-
-    modified_paras = list(set([x for tup in list(surv_para3_localvar.keys()) for x in tup]))
-    set_para3 = list(surv_para3_localvar.keys())
+def para1_para2_dict_generation(paras_vars, tf_masks, emu_para, shape_alpha = 7):
+    paras = list(set([x for tup in list(paras_vars.keys()) for x in tup]))
+    paras3 = list(paras_vars.keys())
 
     double_dict = {}
     
-    for pair in combinations(modified_paras, 2):
+    for pair in combinations(paras, 2):
         pair = set(pair)
-        temp_list = [t for t in set_para3 if pair.issubset(t)]
+        temp_list = [t for t in paras3 if pair.issubset(t)]
 
 
         if len(temp_list) > 0:
@@ -361,7 +322,7 @@ def para1_para2_dict_generation(surv_para3_localvar, tf_masks, emu_para, shape_a
         pts_list = []
         localvars_list = []
         for p3 in para3:
-            temp_localvars = surv_para3_localvar[p3]
+            temp_localvars = paras_vars[p3]
             localvars_list.extend(temp_localvars)
             temp_pts = emu_para[tf_masks[temp_localvars].all(axis = 1)]
             print(temp_pts.shape)
@@ -380,7 +341,6 @@ def para1_para2_dict_generation(surv_para3_localvar, tf_masks, emu_para, shape_a
 
     
     return para2_localvars_dict, pairs_hulls
-
 
 
 
@@ -408,7 +368,7 @@ def para2_error_localvar_detection(para2_localvars_dict, para2_interest, emu_par
 
     return exclude_hulls
 
-
+############################################################
 def para3_mesh_generator(surv_para3_localvar, emu_para, tf_masks):
     para3_meshes = {}
     for k, v in tqdm(surv_para3_localvar.items()):
@@ -685,16 +645,3 @@ def alpha_shape2d(points, alpha, only_outer=True):
             add_edge(edges, ic, ia)
     return edges
 
-
-
-# def distribution_difference(df1, df2, bins=100):
-#     abs_den_diff = {}
-#     for column in df1.columns:
-#         hist1, bin_edges1 = np.histogram(df1[column], bins=bins, density=True, range = (0,1))
-#         hist2, bin_edges2 = np.histogram(df2[column], bins=bins, density=True, range = (0,1))
-#     # Compute bin widths and probabilities
-#         abs_den_diff[column] = np.sum(abs(hist1 - hist2))
-
-#     output = pd.Series(abs_den_diff)
-
-#     return pd.Series(output)
