@@ -258,19 +258,18 @@ def range_err_detection(paras_vars, tf_masks, emu_para, meta):
     return para1_vars, para1_min_max
 
 
-## XX Nov 6
 def para1_error_localvar_detection(para1_vars_dict, p, emu_para, tf_masks, n_comb = 1):
 
     p = [p]
-    vars = para1_vars_dict[tuple(p)]
+    vars = para1_vars_dict[tuple(p)[0]]
     
 
     vars_min_max = []
-    print(len(vars))
+    
     for var_comb in list(combinations(vars, n_comb)):
-        used_vars = [v for v in vars if v not in var_comb]
+        used_vars = var_comb
         
-        pts_list = [emu_para[tf_masks[v].all(axis = 1)][p] for v in used_vars]
+        pts_list = [emu_para[tf_masks[v]][p] for v in used_vars]
         pts_max = min([pts.max().values for pts in pts_list])
         pts_min = max([pts.min().values for pts in pts_list])
 
@@ -281,53 +280,50 @@ def para1_error_localvar_detection(para1_vars_dict, p, emu_para, tf_masks, n_com
     output_f = output[output["min"] > output["max"]]
     return output, output_f
     
+## XX Nov 6
 
-#xxx Oct 31st
 
-def para2_error_detection(paras_vars, tf_masks, emu_para, shape_alpha = 7):
+def para2_error_detection(paras_vars, tf_masks, emu_para, meta, shape_alpha = 7):
+    ## Need to check
+    para_inds = np.sort(pd.unique(meta.values.ravel()))
+    para_nm = list(emu_para.columns)
+
     
-    paras = list(set([x for tup in list(paras_vars.keys()) for x in tup]))
-    paras3 = list(paras_vars.keys())
-
-    para2_para3 = {}
+    para2_vars = {}
+    para2_vars_s = {}
+    for p2 in combinations(para_inds, 2):
+        for c in tf_masks.columns:
+            if set(p2).issubset(meta[c].values):
+                para_nm2 = tuple(sorted([para_nm[i] for i in list(p2)]))
+                para2_vars.setdefault(para_nm2, []).append(c)
     
-    for pair in combinations(paras, 2):
-        pair = set(pair)
-        temp_list = [t for t in paras3 if pair.issubset(t)]
-
-
-        if len(temp_list) > 0:
-            para2_para3[tuple(pair)] = temp_list
-
+    
+    ###
     pairs_hulls = {}
     
-    para2_vars = {}   ## ?? xx
-
-    for para2, para3 in tqdm(para2_para3.items()):
+    for para2, vars in tqdm(para2_vars.items()):
         pts_list = []
-        vars_list = []
-        for p3 in para3:
-            vars_temp = paras_vars[p3]
-            vars_list.extend(vars_temp)
-            temp_pts = emu_para[tf_masks[vars_temp].all(axis = 1)]
-            print(temp_pts.shape)
-            if temp_pts.shape[0] > 20000:
-                temp_pts = temp_pts.sample(20000)
-            pts_list.append(temp_pts[list(para2)].values)
+        
+        temp_pts = emu_para[tf_masks[vars].all(axis = 1)]
+        print(temp_pts.shape)
+        if temp_pts.shape[0] < 1000:
+            para2_vars_s[para2] = vars
+        if temp_pts.shape[0] > 20000:
+            temp_pts = temp_pts.sample(20000)
+        pts_list.append(temp_pts[list(para2)].values)
 
         hulls = [alphashape.alphashape(points, shape_alpha) for points in pts_list]
         
         intersection_hulls = reduce(lambda a, b: a.intersection(b), hulls)
         pairs_hulls[para2] = intersection_hulls
         
-        para2_vars[para2] = vars_list
+
 
     print([v for v, k in list(pairs_hulls.items()) if k.is_empty])
 
-    
-    return para2_vars, pairs_hulls
+    return para2_vars, para2_vars_s, pairs_hulls
 
-
+## Need to check
 
 
 
