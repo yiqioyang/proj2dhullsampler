@@ -27,6 +27,7 @@ from shapely.geometry import Point
 import joblib
 
 
+
 def gp_training_application(X, Y, y_name, X_emu, path = "/glade/work/qingyuany/repo_data/spatialtuning/", no_sen = 2, no_restart = 10):
     y = Y[y_name]
     y_norm = (y - y.mean())/y.std()
@@ -172,42 +173,34 @@ def get_top_2_info(row, n_para):
 
 
 
-def group_para_climatology(df, tf_masks, vars = np.NAN, threshold = 5000, n_para = 3):
+def group_para_climatology(df, tf_masks, meta, vars = np.NAN, threshold = 5000):
     
     if isinstance(vars, list):
        vars = vars
     else:
         vars = list(tf_masks.columns)
-    
-    ddiff = []
-    
-    for var in tqdm(vars):
-        df_s = df[tf_masks[var]]
-        ddiff.append(dist_diff(df_s, df.sample(n = 10000)))
 
-            
-    ddiff = pd.concat(ddiff, axis = 1)
-    ddiff.columns = vars
-    ddiff = ddiff.transpose().apply(get_top_2_info, args = (n_para,), axis = 1)
-    
-    if n_para == 3:
-        ddiff["grouped_keys"] = ddiff[["para1", "para2", "para3"]].apply(lambda row: tuple(sorted(row)), axis = 1)
-    if n_para == 2:
-        ddiff["grouped_keys"] = ddiff[["para1", "para2"]].apply(lambda row: tuple(sorted(row)), axis = 1)
+
+    n_para = meta.shape[0]
+
+    paras_vars = {}
+
+    for c in vars: 
+        para_inds = meta[c]
+        para_nms = sorted(list(df.columns[para_inds]))
+        paras_vars.setdefault(tuple(para_nms), []).append(c)
         
-    paras_cli_dict = ddiff.groupby("grouped_keys").localvar.apply(list).to_dict()
-    
-    strt_paras_cli_dict = {}
-    surv_paras_cli_dict = {}
-    for k, v in paras_cli_dict.items():
 
-        print(f"{k}: {tf_masks[v].all(axis = 1).sum()}")
+    strt_paras_vars = {}
+    surv_paras_vars = {}
+    for k, v in paras_vars.items():
+
         if tf_masks[v].all(axis = 1).sum() < threshold :
-            strt_paras_cli_dict[k] = v
+            strt_paras_vars[k] = v
         else:
-            surv_paras_cli_dict[k] = v
+            surv_paras_vars[k] = v
 
-    return paras_cli_dict, strt_paras_cli_dict, surv_paras_cli_dict
+    return paras_vars, strt_paras_vars, surv_paras_vars
 
 
 
@@ -235,47 +228,37 @@ def strterr_detection(paras_vars, tf_masks, n_comb = 2):
 
 
 
-def range_err_detection(paras_vars, tf_masks, emu_para):
-    paras = list(set([x for tup in list(paras_vars.keys()) for x in tup]))
-    paras3 = list(paras_vars.keys())
+def range_err_detection(paras_vars, tf_masks, emu_para, meta):
+
+    para_inds = np.sort(pd.unique(meta.values.ravel()))
+    para_nm = list(emu_para.columns)
     
-    para1_dict = {} # xx Check if the para3s are sorted
-    for p in paras:
-        p = set([p])
-        temp_list = [t for t in paras3 if p.issubset(t)]
+    para1_vars = {}
+    for p in para_inds:
+        for c in tf_masks.columns:
+            if p in meta[c].values:
+                para1_vars.setdefault(para_nm[p], []).append(c)
 
-        if len(temp_list) > 0:
-            para1_dict[tuple(p)] = temp_list
-
-
-    para1_min_max_range = {}
-    para1_vars_dict = {}
+    para1_min_max = {}
     
-    for p1, p3s in list(para1_dict.items()):
+    
+    for p1, vars in list(para1_vars.items()):
         pts_list = []
-        p_vars = []
-        for p3 in p3s:
-            
-            vars3 = paras_vars[p3]
-            p_vars.extend(vars3)
-            
-            temp_pts = emu_para[tf_masks[vars3].all(axis = 1)]
+        for var in vars:    
+            temp_pts = emu_para[tf_masks[var]]
             if temp_pts.shape[0] > 40000:
                 temp_pts = temp_pts.sample(40000)
-            pts_list.append(temp_pts[list(p1)].values)
-
-        para1_vars_dict[p1] = p_vars
+            pts_list.append(temp_pts[p1].values)
+            
         temp_min  = np.array([lst.min() for lst in pts_list])
         temp_max  = np.array([lst.max() for lst in pts_list])
-        para1_min_max_range[p1] = [temp_min.max(), temp_max.min()]
+        para1_min_max[p1] = [temp_min.max(), temp_max.min()]
 
-
-    print([v for v, k in para1_min_max_range.items() if k[1] - k[0] < 0])
     
-    return para1_vars_dict, para1_min_max_range
+    return para1_vars, para1_min_max
 
 
-
+## XX Nov 6
 def para1_error_localvar_detection(para1_vars_dict, p, emu_para, tf_masks, n_comb = 1):
 
     p = [p]
@@ -286,8 +269,8 @@ def para1_error_localvar_detection(para1_vars_dict, p, emu_para, tf_masks, n_com
     print(len(vars))
     for var_comb in list(combinations(vars, n_comb)):
         used_vars = [v for v in vars if v not in var_comb]
-        print(len(used_vars))
-        pts_list = [emu_para[tf_masks[v]][p] for v in used_vars]
+        
+        pts_list = [emu_para[tf_masks[v].all(axis = 1)][p] for v in used_vars]
         pts_max = min([pts.max().values for pts in pts_list])
         pts_min = max([pts.min().values for pts in pts_list])
 
@@ -301,11 +284,12 @@ def para1_error_localvar_detection(para1_vars_dict, p, emu_para, tf_masks, n_com
 
 #xxx Oct 31st
 
-def para1_para2_dict_generation(paras_vars, tf_masks, emu_para, shape_alpha = 7):
+def para2_error_detection(paras_vars, tf_masks, emu_para, shape_alpha = 7):
+    
     paras = list(set([x for tup in list(paras_vars.keys()) for x in tup]))
     paras3 = list(paras_vars.keys())
 
-    double_dict = {}
+    para2_para3 = {}
     
     for pair in combinations(paras, 2):
         pair = set(pair)
@@ -313,18 +297,19 @@ def para1_para2_dict_generation(paras_vars, tf_masks, emu_para, shape_alpha = 7)
 
 
         if len(temp_list) > 0:
-            double_dict[tuple(pair)] = temp_list
+            para2_para3[tuple(pair)] = temp_list
 
     pairs_hulls = {}
-    para2_localvars_dict = {}
+    
+    para2_vars = {}   ## ?? xx
 
-    for para2, para3 in tqdm(double_dict.items()):
+    for para2, para3 in tqdm(para2_para3.items()):
         pts_list = []
-        localvars_list = []
+        vars_list = []
         for p3 in para3:
-            temp_localvars = paras_vars[p3]
-            localvars_list.extend(temp_localvars)
-            temp_pts = emu_para[tf_masks[temp_localvars].all(axis = 1)]
+            vars_temp = paras_vars[p3]
+            vars_list.extend(vars_temp)
+            temp_pts = emu_para[tf_masks[vars_temp].all(axis = 1)]
             print(temp_pts.shape)
             if temp_pts.shape[0] > 20000:
                 temp_pts = temp_pts.sample(20000)
@@ -335,12 +320,12 @@ def para1_para2_dict_generation(paras_vars, tf_masks, emu_para, shape_alpha = 7)
         intersection_hulls = reduce(lambda a, b: a.intersection(b), hulls)
         pairs_hulls[para2] = intersection_hulls
         
-        para2_localvars_dict[para2] = localvars_list
+        para2_vars[para2] = vars_list
 
     print([v for v, k in list(pairs_hulls.items()) if k.is_empty])
 
     
-    return para2_localvars_dict, pairs_hulls
+    return para2_vars, pairs_hulls
 
 
 
