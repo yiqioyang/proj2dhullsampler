@@ -280,7 +280,6 @@ def para1_error_localvar_detection(para1_vars_dict, p, emu_para, tf_masks, n_com
     output_f = output[output["min"] > output["max"]]
     return output, output_f
     
-## XX Nov 6
 
 
 def para2_error_detection(paras_vars, tf_masks, emu_para, meta, shape_alpha = 7):
@@ -288,9 +287,9 @@ def para2_error_detection(paras_vars, tf_masks, emu_para, meta, shape_alpha = 7)
     para_inds = np.sort(pd.unique(meta.values.ravel()))
     para_nm = list(emu_para.columns)
 
-    
     para2_vars = {}
     para2_vars_s = {}
+    para2_area = {}
     for p2 in combinations(para_inds, 2):
         for c in tf_masks.columns:
             if set(p2).issubset(meta[c].values):
@@ -300,64 +299,70 @@ def para2_error_detection(paras_vars, tf_masks, emu_para, meta, shape_alpha = 7)
     
     ###
     pairs_hulls = {}
-    
+    ##
     for para2, vars in tqdm(para2_vars.items()):
-        pts_list = []
         
-        temp_pts = emu_para[tf_masks[vars].all(axis = 1)]
-        print(temp_pts.shape)
-        if temp_pts.shape[0] < 1000:
-            para2_vars_s[para2] = vars
-        if temp_pts.shape[0] > 20000:
-            temp_pts = temp_pts.sample(20000)
-        pts_list.append(temp_pts[list(para2)].values)
-
+        pts_list = [emu_para[tf_masks[var]][list(para2)] for var in vars]
+        pts_list =  [pts.sample(n=5000) if pts.shape[0] > 5000 else pts for pts in pts_list]   
+        
         hulls = [alphashape.alphashape(points, shape_alpha) for points in pts_list]
         
         intersection_hulls = reduce(lambda a, b: a.intersection(b), hulls)
         pairs_hulls[para2] = intersection_hulls
+        para2_area[para2] = intersection_hulls.area
         
-
-
-    print([v for v, k in list(pairs_hulls.items()) if k.is_empty])
-
-    return para2_vars, para2_vars_s, pairs_hulls
-
-## Need to check
-
-
-
-def para2_error_localvar_detection(para2_localvars_dict, para2_interest, emu_para,tf_masks, no_comb = 2,  shape_alpha = 7):
-    ## xx??
-    para2_interest = tuple(para2_interest)
-    localvars_interest = para2_localvars_dict[para2_interest]
-    
-    exclude_hulls ={}
-
-    for masked_localvars in tqdm(combinations(localvars_interest, no_comb)):
-        masked_localvars = list(masked_localvars)
-        analyzed_localvars = [localvar for localvar in localvars_interest if localvar not in masked_localvars]
-
-        sub_samples = emu_para[tf_masks[analyzed_localvars].all(axis = 1)][list(para2_interest)]
-        if sub_samples.shape[0] > 40000:
-            sub_samples = sub_samples.sample(40000)
-
-        exclude_hulls[tuple(masked_localvars)] = alphashape.alphashape(sub_samples.values, shape_alpha)
+        
+        if (intersection_hulls.area < 0.01) | (np.isnan(intersection_hulls.area)):
+            para2_vars_s[para2] = vars
         
     
-    print([v for v, k in exclude_hulls.items() if not k.is_empty])
 
-    return exclude_hulls
+    return para2_vars, para2_vars_s, para2_area, pairs_hulls
 
+## Nov 6
+
+
+
+def para2_error_localvar_detection(para2_vars, para2, emu_para,tf_masks, n_comb = 2,  shape_alpha = 7):
+    ## xx ??
+    para2 = tuple(sorted(para2))
+    vars = para2_vars[para2]
+    print(len(vars))    
+
+    vars_area = []
+    
+    
+    for include_vars in tqdm(combinations(vars, n_comb)):
+        include_vars = list(include_vars)
+
+        
+        pts_list = [emu_para[tf_masks[var]][list(para2)] for var in include_vars]
+        pts_list =  [pts.sample(n=5000) if pts.shape[0] > 5000 else pts for pts in pts_list]   
+
+        hulls = [alphashape.alphashape(points, shape_alpha) for points in pts_list]
+        intersection_hulls = reduce(lambda a, b: a.intersection(b), hulls)
+
+        vars_area.append(include_vars + [intersection_hulls.area])
+        
+    
+    vars_area = pd.DataFrame(vars_area, columns = [f"var{i+1}" for i in range(n_comb)] + ["area"])
+    vars_area = vars_area.sort_values(by = "area")
+    
+    
+    return vars_area
+
+
+##xxx###
 ############################################################
-def para3_mesh_generator(surv_para3_localvar, emu_para, tf_masks):
+
+def para3_mesh_generator(paras_vars, emu_para, tf_masks):
     para3_meshes = {}
-    for k, v in tqdm(surv_para3_localvar.items()):
-        temp_surv_pts = emu_para[tf_masks[v].all(axis = 1)]
-        if temp_surv_pts.shape[0] > 10000:
-            temp_surv_pts = temp_surv_pts.sample(10000)
+    for k, v in tqdm(paras_vars.items()):
+        temp_pts = emu_para[tf_masks[v].all(axis = 1)]
+        if temp_pts.shape[0] > 10000:
+            temp_pts = temp_pts.sample(10000)
             
-        temp_pts_np = temp_surv_pts[list(k)].values
+        temp_pts_np = temp_pts[list(k)].values
         temp_pts_index = alpha_shape_3D(temp_pts_np, 7)
     
         para3_meshes[k] = trimesh.Trimesh(vertices=temp_pts_np, faces=list(temp_pts_index))
