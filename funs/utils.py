@@ -9,7 +9,7 @@ from tqdm.notebook import tqdm
 from functools import reduce
 import trimesh
 from shapely import points, contains
-
+from collections import Counter
 
 
 from sklearn.gaussian_process import GaussianProcessRegressor
@@ -319,7 +319,9 @@ def para2_error_detection(paras_vars, tf_masks, emu_para, meta, shape_alpha = 7)
 
     return para2_vars, para2_vars_s, para2_area, pairs_hulls
 
-## Nov 6
+
+
+
 
 
 
@@ -352,6 +354,40 @@ def para2_error_localvar_detection(para2_vars, para2, emu_para,tf_masks, n_comb 
     return vars_area
 
 
+
+def para2_group_summary(para2_hulls):
+
+    para2s = list(para2_hulls.keys())
+    ps = set([p for v, k in list(para2_hulls.items()) for p in v])
+    para2s_flat = [p for v, k in list(para2_hulls.items()) for p in v]
+    count = list(Counter(sorted(para2s_flat)).most_common())
+    return count
+
+
+def group_by_para(para2_hulls, p):
+    grouped_hulls  = {}
+    
+    for k, v in para2_hulls.items():
+        if p in list(k):
+            grouped_hulls[k] = v
+
+    return grouped_hulls
+
+
+
+def group_by_rest(para2_hulls, list_hulls):
+    hull_names = []
+    rest_hulls = {}
+    for l in list_hulls:
+        hull_names.extend(l.keys())
+
+    for k, v in para2_hulls.items():
+        if k not in hull_names:
+            rest_hulls[k] = v
+
+    return rest_hulls
+
+
 ##xxx###
 ############################################################
 
@@ -359,8 +395,8 @@ def para3_mesh_generator(paras_vars, emu_para, tf_masks):
     para3_meshes = {}
     for k, v in tqdm(paras_vars.items()):
         temp_pts = emu_para[tf_masks[v].all(axis = 1)]
-        if temp_pts.shape[0] > 10000:
-            temp_pts = temp_pts.sample(10000)
+        if temp_pts.shape[0] > 5000:
+            temp_pts = temp_pts.sample(5000)
             
         temp_pts_np = temp_pts[list(k)].values
         temp_pts_index = alpha_shape_3D(temp_pts_np, 7)
@@ -369,22 +405,53 @@ def para3_mesh_generator(paras_vars, emu_para, tf_masks):
 
     
     return para3_meshes
+#############################################################
+
+def ratio_cal2d(poly_dict):
+    ratio = {}
+    hulls2d = {}
+    for k, polyg in poly_dict.items():
+        sq_area = (polyg.bounds[3] - polyg.bounds[1]) *  (polyg.bounds[2] - polyg.bounds[0])
+        ratio[k] = polyg.area/sq_area
+
+    ratio = pd.Series(ratio).sort_values()
+    
+    for k in list(ratio.index):
+        hulls2d[k] = poly_dict[k]
+    return ratio, hulls2d
+    
+
+
+def ratio_cal3d(hull_dict):
+    ratio = {}
+    hulls3d = {}
+    for k, hull in hull_dict.items():
+        
+        sq_vol = np.prod(hull.extents)
+        ratio[k] = hull.volume/sq_vol
+
+    ratio = pd.Series(ratio).sort_values()
+    
+    for k in list(ratio.index):
+        hulls3d[k] = hull_dict[k]
+    return ratio, hulls3d
+    
 
 
 
-def sample_from_poly(no_pts, para_nm, single_min_max_range, poly_dict, existing_pts = np.NAN, monitor = True):
-    ## Not thoroughly checked
+############################################################
+
+def sample2d(no_pts, para_nm, single_min_max_range, poly_dict, existing_pts = np.NAN, monitor = True):
+    
     if not isinstance(existing_pts, pd.DataFrame):
         if np.isnan(existing_pts):
             random_pts = pd.DataFrame(np.random.uniform(0, 1, (no_pts, len(para_nm))), columns = para_nm)
         for k, v in single_min_max_range.items():
-            random_pts[list(k)] = random_pts[list(k)] * (v[1] - v[0]) + v[0]
+            random_pts[list([k])] = random_pts[list([k])] * (v[1] - v[0]) + v[0]
         
     else:
         random_pts = existing_pts
     
-
-    print(random_pts.shape)
     for k, polyg in poly_dict.items():
         temp_pts = random_pts[list(k)].values
         temp_pts = points(temp_pts)
@@ -401,12 +468,13 @@ def sample_from_poly(no_pts, para_nm, single_min_max_range, poly_dict, existing_
     return random_pts
 
 
-def sample_from_mesh(no_pts, para_nm, single_min_max_range, mesh_dict, existing_pts = np.NAN, monitor = True):
+
+def sample3d(no_pts, para_nm, single_min_max_range, mesh_dict, existing_pts = np.NAN, monitor = True):
     if not isinstance(existing_pts, pd.DataFrame):
         if np.isnan(existing_pts):
             random_pts = pd.DataFrame(np.random.uniform(0, 1, (no_pts, len(para_nm))), columns = para_nm)
         for k, v in single_min_max_range.items():
-            random_pts[list(k)] = random_pts[list(k)] * (v[1] - v[0]) + v[0]
+            random_pts[list([k])] = random_pts[list([k])] * (v[1] - v[0]) + v[0]
         
     else:
         random_pts = existing_pts
