@@ -4,9 +4,11 @@ import numpy as np
 import pandas as pd
 from itertools import permutations
 from itertools import combinations
+
 from tqdm import tqdm
 from tqdm.notebook import tqdm
 from functools import reduce
+from functools import partial
 import trimesh
 from shapely import points, contains
 from collections import Counter
@@ -14,6 +16,7 @@ from collections import Counter
 
 from sklearn.gaussian_process import GaussianProcessRegressor
 from sklearn.gaussian_process.kernels import Matern, WhiteKernel, ConstantKernel as C
+from concurrent.futures import ProcessPoolExecutor, as_completed
 
 
 
@@ -323,8 +326,6 @@ def para2_error_detection(paras_vars, tf_masks, emu_para, meta, shape_alpha = 7)
 
 
 
-
-
 def para2_error_localvar_detection(para2_vars, para2, emu_para,tf_masks, n_comb = 2,  shape_alpha = 7):
     ## xx ??
     para2 = tuple(sorted(para2))
@@ -466,6 +467,61 @@ def sample2d(no_pts, para_nm, single_min_max_range, poly_dict, existing_pts = np
         random_pts = random_pts[temp_masks]
 
     return random_pts
+
+
+
+
+def sample2d_wrapper(hulls_list, para_nm, single_min_max_range, exist_pts = np.nan, n_pts = 1000000, rand_int = 1):
+    
+    np.random.seed()
+    if isinstance(exist_pts, pd.DataFrame):
+        random_pts = exist_pts
+    else:
+        random_pts = pd.DataFrame(np.random.uniform(0, 1, (n_pts, len(para_nm))), columns = para_nm)
+        for k, v in single_min_max_range.items():
+            random_pts[list([k])] = random_pts[list([k])] * (v[1] - v[0]) + v[0]
+    
+    for k, hull in hulls_list.items():
+
+        temp_pts = random_pts[(sorted(list(k)))].values
+        temp_pts = points(temp_pts)
+        
+        temp_mask = contains(hull, temp_pts)
+        if temp_mask.sum() == 0:
+            return []
+
+        random_pts = random_pts[temp_mask].reset_index(drop=True)
+
+    return random_pts
+
+
+
+def sample2d_perlist(hulls_list, para_nm, single_min_max_range, n_iter, exist_pts = np.nan, n_pts= 1000000, n_cpu = 30, n_need = 1000000):
+    
+    ################################
+    pts = []
+    count = 0
+    for i in np.arange(0, n_iter):
+        # Use all CPUs (or set max_workers)
+        with ProcessPoolExecutor(max_workers= n_cpu) as ex:
+            worker = partial(sample2d_wrapper, hulls_list, para_nm, single_min_max_range, exist_pts, n_pts)
+            pts_list = list(ex.map(worker, np.arange(n_cpu)))
+            pts_list = [x for x in pts_list if isinstance(x, pd.DataFrame)]
+            
+            pts_list = pd.concat(pts_list, axis = 0, ignore_index=True)
+            count = count +   pts_list.shape[0]
+        pts.append(pts_list)
+        if count > n_need:
+            break
+    
+    pts = pd.concat(pts, axis = 0, ignore_index= True)
+    return pts
+########################################
+
+
+
+
+
 
 
 
