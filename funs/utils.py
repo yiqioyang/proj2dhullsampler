@@ -61,11 +61,11 @@ def gp_training_application(X, Y, y_name, X_emu, path = "/glade/work/qingyuany/r
 def fit_gp_for_single_1d(y, X, i, length_scale=0.5):
     """Fits a GP model for a given pair of feature indices."""
     
-    X_single = X[:, [i]].reshape([-1,1])  # Select the two features
+    X_single = X[:, [i]].reshape([-1,1])  
     
     # Define GP kernel
     kernel =  Matern(length_scale=length_scale, 
-                     length_scale_bounds="fixed", nu = 2.5)  + WhiteKernel(noise_level = 1.0)
+                     length_scale_bounds="fixed", nu = 2.5)  + WhiteKernel(noise_level = 0.8)
     
     # Fit GP model
     gp = GaussianProcessRegressor(kernel=kernel, optimizer=None)
@@ -93,61 +93,12 @@ def fit_all_gp_models_1d(y, X, len1d = 0.5):
     
     sorted_delta = sorted(residual_single_stds.items(), key=lambda x: x[1], reverse=True)
     top_10 = dict(sorted_delta[:20])
-
-
     output = np.array([k + (v,) for k, v in top_10.items()]).flatten()
     
     return output
 
 
 
-def compute_mi_pair(col_x, col_y):
-    """
-    Calculate the Mutual Information between two d series
-    xxTest whether it is used laterxx
-    """
-    
-    x = col_x.values.reshape(-1, 1)
-    y = col_y.values
-    mi = mutual_info_regression(x, y, discrete_features=False)
-    return mi[0]
-
-
-
-def dist_diff(df1, df2, bins=100):
-    '''
-    A simple way to calculate the "distribution difference" for each column of the pd dataframes using np.histogram
-    Inputs:
-        df1: the surviving ensemble members for each climatology (pd dataframes).
-        df2: normally the original randomly sampled ensemble members (pd dataframes).
-    Used to determine what parameters are varied after constraining by certain parameters
-    '''
-    abs_den_diff = {}
-    for column in df1.columns:
-        hist1, bin_edges1 = np.histogram(df1[column], bins=bins, density=True, range = (0,1))
-        hist2, bin_edges2 = np.histogram(df2[column], bins=bins, density=True, range = (0,1))
-    # Compute bin widths and probabilities
-        abs_den_diff[column] = np.sum(abs(hist1 - hist2))
-
-    output = pd.Series(abs_den_diff)
-
-    return pd.Series(output)
-
-
-
-
-# def filter_per_critical_para(tf_masks, sel_local_var, no_sample = 3):
-#     ### ?? xxxx ####
-#     output_pd = []
-#     index_names = np.arange(no_sample).astype(str).tolist() + ["count"]
-#     for vars1 in list(combinations(sel_local_var, no_sample)):
-#         sel_vars = list(vars1)
-#         sel_vars.append(tf_masks[sel_vars].all(axis = 1).sum())
-#         output_pd.append(pd.Series(sel_vars, index = index_names))
-
-#     output_pd = pd.concat(output_pd, axis = 1).transpose()
-#     output_pd = output_pd.sort_values("count")
-#     return output_pd
 
 
 
@@ -262,7 +213,10 @@ def range_err_detection(paras_vars, tf_masks, emu_para, meta):
 
 
 def para1_error_localvar_detection(para1_vars_dict, p, emu_para, tf_masks, n_comb = 1):
-
+    ### take parameter p, 
+    ### take combinations n_comb of the variables that are connected to p,
+    ### calculate the min and max for each of the point clouds constrained by var_comb ***
+    ### 
     p = [p]
     vars = para1_vars_dict[tuple(p)[0]]
     
@@ -279,7 +233,7 @@ def para1_error_localvar_detection(para1_vars_dict, p, emu_para, tf_masks, n_com
         vars_min_max.append(pd.Series([var_comb, pts_min, pts_max]))
 
     output = pd.DataFrame(vars_min_max)
-    output.columns = ["excluded_vars", "min", "max"]
+    output.columns = ["included_vars", "min", "max"]
     output_f = output[output["min"] > output["max"]]
     return output, output_f
     
@@ -359,6 +313,7 @@ def para2_error_localvar_detection(para2_vars, para2, emu_para,tf_masks, n_comb 
 def para2_group_summary(para2_hulls):
 
     para2s = list(para2_hulls.keys())
+    
     ps = set([p for v, k in list(para2_hulls.items()) for p in v])
     para2s_flat = [p for v, k in list(para2_hulls.items()) for p in v]
     count = list(Counter(sorted(para2s_flat)).most_common())
@@ -464,7 +419,7 @@ def sample2d(no_pts, para_nm, single_min_max_range, poly_dict, existing_pts = np
             print("Didn't find anything")
             return []
 
-        random_pts = random_pts[temp_masks]
+        random_pts = random_pts[temp_masks].reset_index(drop=True)
 
     return random_pts
 
@@ -489,7 +444,8 @@ def sample2d_wrapper(hulls_list, para_nm, single_min_max_range, exist_pts = np.n
         temp_mask = contains(hull, temp_pts)
         if temp_mask.sum() == 0:
             return []
-
+            
+        #random_pts = random_pts[temp_mask]
         random_pts = random_pts[temp_mask].reset_index(drop=True)
 
     return random_pts
