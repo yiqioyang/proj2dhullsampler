@@ -31,18 +31,18 @@ import joblib
 
 
 
-def gp_training_application(X, Y, y_name, X_emu, path = "/glade/work/qingyuany/repo_data/spatialtuning/", no_sen = 2, no_restart = 10):
+def gp_training_application(X, Y, y_name, X_emu, path = "/glade/work/qingyuany/repo_data/spatialtuning/", n_sens_p = 2, no_restart = 10):
     y = Y[y_name]
     y_norm = (y - y.mean())/y.std()
 
     if ~(np.isnan(y_norm).all()):
         sage1d_temp = fit_all_gp_models_1d(y_norm.values, X.values, len1d = 0.4)
-        print(sage1d_temp)
-        sel_para_ind = sage1d_temp[:(no_sen * 2):2].astype(int)
+        
+        sel_para_ind = sage1d_temp[:(n_sens_p * 2):2].astype(int)
 
         #sel_para_ind = sel_para_ind.reshape(1,-1)
 
-        kernel = C(1.0, (1e-3, 1)) * Matern(length_scale=0.001, nu=2.5, length_scale_bounds=(0.1, 3)) + WhiteKernel(noise_level=0.5, noise_level_bounds=(0.01, 0.9))
+        kernel = C(1.0, (1e-3, 0.8)) * Matern(length_scale=0.001, nu=2.5, length_scale_bounds=(0.1, 3)) + WhiteKernel(noise_level=0.5, noise_level_bounds=(0.01, 0.9))
         gp = GaussianProcessRegressor(kernel=kernel, n_restarts_optimizer= no_restart, normalize_y=True)
         
         gp.fit(X.values[:,sel_para_ind], y_norm.values)
@@ -50,10 +50,16 @@ def gp_training_application(X, Y, y_name, X_emu, path = "/glade/work/qingyuany/r
         joblib.dump(gp, path + "python_obj/" + y_name + "_gpmodel.pkl")
 
         y_mean_emu, y_std_emu = gp.predict(X_emu.values[:,sel_para_ind], return_std=True)
+        y_mean_emu = y_mean_emu.reshape(-1, 1)
+        y_std_emu = y_std_emu.reshape(-1, 1)
 
-        pd.DataFrame(y_mean_emu, columns=[y_name]).to_csv(path + "emulated_ensemble" + "/gp_mean_" + y_name + ".csv")
-        pd.DataFrame(y_std_emu, columns=[y_name]).to_csv(path + "emulated_ensemble" + "/gp_std_" + y_name + ".csv")
+        y_mean_std_emu = np.hstack([y_mean_emu, y_std_emu])
+        y_mean_std_emu = pd.DataFrame(y_mean_std_emu, columns =[y_name + "_mean", y_name + "_std"])
+        y_mean_std_emu.to_csv(path + "emulated_ensemble" + "/gp_mean_std_" + y_name + ".csv")
+        #pd.DataFrame(y_mean_emu, columns=[y_name]).to_csv(path + "emulated_ensemble" + "/gp_mean_" + y_name + ".csv")
+        #pd.DataFrame(y_std_emu, columns=[y_name]).to_csv(path + "emulated_ensemble" + "/gp_std_" + y_name + ".csv")
 
+        
         return ([y_name, sel_para_ind])
 
         
@@ -212,6 +218,55 @@ def range_err_detection(paras_vars, tf_masks, emu_para, meta):
     return para1_vars, para1_min_max
 
 
+
+
+
+def range_err_detection2(paras_vars, tf_masks, emu_para, meta):
+
+    para_inds = np.sort(pd.unique(meta.values.ravel()))
+    para_nm = list(emu_para.columns)
+    
+    para1_vars = {}
+    para1_para2 = {}
+    para1_min_max = {}
+    
+    for p in para_inds:
+        for c in tf_masks.columns:
+            if p in meta[c].values:
+                para1_vars.setdefault(para_nm[p], []).append(c)
+    
+    for p in para_inds:
+        for p2 in list(paras_vars.keys()):
+            if para_nm[p] in p2:
+                para1_para2.setdefault(para_nm[p], []).append(p2)
+    
+    
+    
+    for p1, p2s in list(para1_para2.items()):
+        pts_list = []
+        for p2 in p2s:    
+            temp_pts = emu_para[tf_masks[paras_vars[p2]].all(axis = 1)]
+            if temp_pts.shape[0] > 40000:
+                temp_pts = temp_pts.sample(40000)
+            pts_list.append(temp_pts[p1].values)
+            
+        temp_min  = np.array([lst.min() for lst in pts_list])
+        temp_max  = np.array([lst.max() for lst in pts_list])
+        para1_min_max[p1] = [temp_min.max(), temp_max.min()]
+
+    
+    para1_min_max = pd.DataFrame(para1_min_max).T
+    para1_min_max.columns = ["min", "max"]
+
+    print(para1_min_max[para1_min_max["min"] >=  para1_min_max["max"]])
+    
+    return para1_vars, para1_para2, para1_min_max
+
+
+
+
+
+
 def para1_error_localvar_detection(para1_vars_dict, p, emu_para, tf_masks, n_comb = 1):
     ### take parameter p, 
     ### take combinations n_comb of the variables that are connected to p,
@@ -224,13 +279,12 @@ def para1_error_localvar_detection(para1_vars_dict, p, emu_para, tf_masks, n_com
     vars_min_max = []
     
     for var_comb in list(combinations(vars, n_comb)):
-        used_vars = var_comb
+        used_vars = [v for v in vars if v not in var_comb]
         
-        pts_list = [emu_para[tf_masks[v]][p] for v in used_vars]
-        pts_max = min([pts.max().values for pts in pts_list])
-        pts_min = max([pts.min().values for pts in pts_list])
-
-        vars_min_max.append(pd.Series([var_comb, pts_min, pts_max]))
+        temp_pts = emu_para[tf_masks[used_vars].all(axis = 1)][p]
+        if tf_masks[used_vars].all(axis = 1).sum() > 0:
+            print(temp_pts.shape[0])
+            vars_min_max.append(pd.Series([var_comb, temp_pts.min().values, temp_pts.max().values]))
 
     output = pd.DataFrame(vars_min_max)
     output.columns = ["included_vars", "min", "max"]
@@ -260,7 +314,7 @@ def para2_error_detection(paras_vars, tf_masks, emu_para, meta, shape_alpha = 7)
     for para2, vars in tqdm(para2_vars.items()):
         
         pts_list = [emu_para[tf_masks[var]][list(para2)] for var in vars]
-        pts_list =  [pts.sample(n=5000) if pts.shape[0] > 5000 else pts for pts in pts_list]   
+        pts_list =  [pts.sample(n=5000).values if pts.shape[0] > 5000 else pts.values for pts in pts_list]   
         
         hulls = [alphashape.alphashape(points, shape_alpha) for points in pts_list]
         
@@ -294,7 +348,7 @@ def para2_error_localvar_detection(para2_vars, para2, emu_para,tf_masks, n_comb 
 
         
         pts_list = [emu_para[tf_masks[var]][list(para2)] for var in include_vars]
-        pts_list =  [pts.sample(n=5000) if pts.shape[0] > 5000 else pts for pts in pts_list]   
+        pts_list =  [pts.sample(n=5000).values if pts.shape[0] > 5000 else pts.values for pts in pts_list]   
 
         hulls = [alphashape.alphashape(points, shape_alpha) for points in pts_list]
         intersection_hulls = reduce(lambda a, b: a.intersection(b), hulls)
@@ -402,8 +456,9 @@ def sample2d(no_pts, para_nm, single_min_max_range, poly_dict, existing_pts = np
     if not isinstance(existing_pts, pd.DataFrame):
         if np.isnan(existing_pts):
             random_pts = pd.DataFrame(np.random.uniform(0, 1, (no_pts, len(para_nm))), columns = para_nm)
-        for k, v in single_min_max_range.items():
-            random_pts[list([k])] = random_pts[list([k])] * (v[1] - v[0]) + v[0]
+        #for k, v in single_min_max_range.items():
+        for p, row in single_min_max_range.iterrows():
+            random_pts[list([p])] = random_pts[list([p])] * (row['max'] - row['min']) + row['min']
         
     else:
         random_pts = existing_pts
@@ -433,8 +488,8 @@ def sample2d_wrapper(hulls_list, para_nm, single_min_max_range, exist_pts = np.n
         random_pts = exist_pts
     else:
         random_pts = pd.DataFrame(np.random.uniform(0, 1, (n_pts, len(para_nm))), columns = para_nm)
-        for k, v in single_min_max_range.items():
-            random_pts[list([k])] = random_pts[list([k])] * (v[1] - v[0]) + v[0]
+        for p, row in single_min_max_range.iterrows():
+            random_pts[list([p])] = random_pts[list([p])] * (row['max'] - row['min']) + row['min']
     
     for k, hull in hulls_list.items():
 
