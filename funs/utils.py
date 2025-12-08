@@ -283,18 +283,27 @@ def para1_error_localvar_detection(para1_vars_dict, p, emu_para, tf_masks, n_com
         
         temp_pts = emu_para[tf_masks[used_vars].all(axis = 1)][p]
         if tf_masks[used_vars].all(axis = 1).sum() > 0:
-            print(temp_pts.shape[0])
+
             vars_min_max.append(pd.Series([var_comb, temp_pts.min().values, temp_pts.max().values]))
 
     output = pd.DataFrame(vars_min_max)
     output.columns = ["included_vars", "min", "max"]
-    output_f = output[output["min"] > output["max"]]
-    return output, output_f
+    print(output)
+    return output
     
+
 
 
 def para2_error_detection(paras_vars, tf_masks, emu_para, meta, shape_alpha = 7):
     ## Need to check
+    sel_col = []
+    for k, v in paras_vars.items():
+        sel_col.extend(v)
+
+    meta = meta[sel_col]
+    tf_masks = tf_masks[sel_col]
+    print(meta.shape)
+    
     para_inds = np.sort(pd.unique(meta.values.ravel()))
     para_nm = list(emu_para.columns)
 
