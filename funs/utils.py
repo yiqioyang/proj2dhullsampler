@@ -38,8 +38,8 @@ def gp_training_application(X, Y, y_name, X_emu, path = "/glade/work/qingyuany/r
     if ~(np.isnan(y_norm).all()):
         sage1d_temp = fit_all_gp_models_1d(y_norm.values, X.values, len1d = 0.4)
         
-        sel_para_ind = sage1d_temp[:(n_sens_p * 2):2].astype(int)
-
+        #sel_para_ind = sage1d_temp[:(n_sens_p * 2):2].astype(int)
+        sel_para_ind = list(sage1d_temp.index[:n_sens_p])
         #sel_para_ind = sel_para_ind.reshape(1,-1)
 
         kernel = C(1.0, (1e-3, 0.8)) * Matern(length_scale=0.001, nu=2.5, length_scale_bounds=(0.1, 3)) + WhiteKernel(noise_level=0.5, noise_level_bounds=(0.01, 0.9))
@@ -64,14 +64,14 @@ def gp_training_application(X, Y, y_name, X_emu, path = "/glade/work/qingyuany/r
 
         
 
-def fit_gp_for_single_1d(y, X, i, length_scale=0.5):
+def fit_gp_for_single_1d(y, X, i, length_scale=0.4):
     """Fits a GP model for a given pair of feature indices."""
     
     X_single = X[:, [i]].reshape([-1,1])  
     
     # Define GP kernel
     kernel =  Matern(length_scale=length_scale, 
-                     length_scale_bounds="fixed", nu = 2.5)  + WhiteKernel(noise_level = 0.8)
+                     length_scale_bounds="fixed", nu = 2.5)  + WhiteKernel(noise_level = 0.4)
     
     # Fit GP model
     gp = GaussianProcessRegressor(kernel=kernel, optimizer=None)
@@ -84,24 +84,26 @@ def fit_gp_for_single_1d(y, X, i, length_scale=0.5):
 
 
 
-def fit_all_gp_models_1d(y, X, len1d = 0.5):
+def fit_all_gp_models_1d(y, X, len1d = 0.4):
     """Fits GP models for all unique feature pairs and stores residual std."""
     residual_single_stds = {}
     
-    y_std = y.std()
+    
     
     feature_single = itertools.combinations(range(X.shape[1]), 1)
     
 
     for i in feature_single:
-        residual_single_stds[(i)] = y_std - fit_gp_for_single_1d(y, X, i, len1d)[1]  # Store only the residual std
+        residual_single_stds[i] = fit_gp_for_single_1d(y, X, i, len1d)[1]  # Store only the residual std
 
     
-    sorted_delta = sorted(residual_single_stds.items(), key=lambda x: x[1], reverse=True)
-    top_10 = dict(sorted_delta[:20])
-    output = np.array([k + (v,) for k, v in top_10.items()]).flatten()
+    sorted_delta = sorted(residual_single_stds.items(), key=lambda x: x[1])
     
-    return output
+    top_10 = dict(sorted_delta[:20])
+    top_10 = pd.Series(top_10)
+    top_10.index = top_10.index.map(lambda top_10: top_10[0])
+    
+    return top_10
 
 
 
