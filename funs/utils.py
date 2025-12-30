@@ -107,8 +107,6 @@ def fit_all_gp_models_1d(y, X, len1d = 0.4):
 
 
 
-
-
 def get_top_2_info(row, n_para):
     top2 = row.nlargest(n_para)
     if n_para == 3:
