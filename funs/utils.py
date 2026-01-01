@@ -184,8 +184,6 @@ def strterr_detection(paras_vars, tf_masks, n_comb = 2):
 
 
 
-
-
 def range_err_detection(paras_vars, tf_masks, emu_para, meta):
 
     para_inds = np.sort(pd.unique(meta.values.ravel()))
