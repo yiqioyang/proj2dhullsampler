@@ -1,3 +1,4 @@
+import pandas as pd
 
 import matplotlib.pyplot as plt
 
@@ -107,6 +108,32 @@ def biplot_original_scale(dfs, subsample_size = 5000, figsize = (50, 50)):
     plt.tight_layout(rect=[0, 0, 1, 0.98])
     plt.show()
 
+
+def plot_histograms_grid_5(dfs, df_vline=None, bins=30, density=False):
+    cols = dfs[0].columns
+    ncols = 5
+    nrows = (len(cols) + ncols - 1) // ncols
+    fig, axes = plt.subplots(nrows, ncols, figsize=(4*ncols, 3*nrows), squeeze=False)
+
+    df_vline = df_vline 
+
+    for ax, c in zip(axes.ravel(), cols):
+        # histograms
+        for i, df in enumerate(dfs):
+            ax.hist(df[c].dropna(), bins=bins, density=density, alpha=0.4, label=f"hist{i}")
+        # vlines
+        if df_vline is not None:
+            for j, df in enumerate(df_vline):
+                vals = df[c].dropna()
+                for k, v in enumerate(vals):
+                    ax.axvline(v, alpha=0.7, lw=1.5, linestyle="--",
+                               label=f"vline{j}" if k == 0 else None)
+        ax.set_title(c)
+
+    for ax in axes.ravel()[len(cols):]:
+        ax.axis("off")
+    axes[0,0].legend()
+    fig.tight_layout()
 
 
 

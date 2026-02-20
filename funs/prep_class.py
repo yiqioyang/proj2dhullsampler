@@ -61,10 +61,13 @@ class DataPrep:
         para_norm = (para_norm - para_norm.min())/(para_norm.max() - para_norm.min())
         self.para_norm = para_norm
         self.case = case
-        if np.array_equal(ppe.ppe_ind.to_numpy(), para.index.to_numpy()):
-            print("Parameter and simulation indices match")
+        if ppe is None:
+            print('No PPE input')
         else:
-            print("Indices not matching!")
+            if np.array_equal(ppe.ppe_ind.to_numpy(), para.index.to_numpy()):
+                print("Parameter and simulation indices match")
+            else:
+                print("Indices not matching!")
 
     def sample_uniform(self, n = 1000000):
         samples = pd.DataFrame(
@@ -77,92 +80,115 @@ class DataPrep:
 
 
 class FeatureBuilder:
-    def __init__(self, ppe, obs, obs_dict, case: CaseDirectory):
+    def __init__(self, ppe, obs, obs_dict, added_data, case: CaseDirectory):
         self.ppe = ppe
         self.obs = obs
         self.obs_dict = obs_dict
         self.case = case  
+        self.added_data = added_data
         
     def zonalize_obs_ppe(self, lat_bins, manul_ppe_info):
-        ppe_zonal_list = []
-        obs_zonal_list = []
-        
-        lab_bin_labels = np.char.add(np.char.add(lat_bins[:-1].astype(str), "to"), lat_bins[1:].astype(str))
-        lab_bin_labels = np.char.add("zonal_", lab_bin_labels)
-        ############################################################################################################
-        for cam_nm, obs_nm in self.obs_dict.items():
-        
-            ppe_da = self.ppe[cam_nm]
-            filter_tf = self.obs[obs_nm].notnull()           ## ## Take out the na values that are in obs from the PPE 
-            ppe_da = ppe_da.where(filter_tf)
 
+        
+        if self.ppe is None:
+            self.added_data[0].to_csv(self.case.tabs / "ppe_tab.csv", index=True)
+            self.added_data[1].to_csv(self.case.tabs / "obs_tab.csv", index=True)
+    
+            self.ppe_pd = self.added_data[0]
+            self.obs_pd = self.added_data[1]
+            self.var_nm = list(ppe_pd.columns)
 
-            
-            zonal_ppe_temp = (ppe_da.mean(dim  = "lon", 
-                                          skipna = True).groupby_bins("lat",lat_bins, labels = lab_bin_labels).mean(dim = "lat", skipna = True).to_dataframe().unstack(level = 1))
-            
-            zonal_ppe_temp.columns.name = None # At this point, zonal_ppe_temp has two level in the columns
-            zonal_ppe_temp.columns = ["_".join(col) for col in list(zonal_ppe_temp.columns)] # The comprehension unpack the two levels
-            
-        
-            zonal_obs_temp = self.obs[obs_nm].mean(dim = "lon", skipna = True).groupby_bins("lat",lat_bins, labels = lab_bin_labels).mean(dim = "lat", skipna = True).to_series()
-            zonal_obs_temp.index = zonal_ppe_temp.columns
-        
-            ppe_zonal_list.append(zonal_ppe_temp)
-            obs_zonal_list.append(zonal_obs_temp)
-        
-        ppe_zonal_pd = pd.concat(ppe_zonal_list, axis = 1)
-        obs_zonal_pd = pd.concat(obs_zonal_list)
-
-        nan_obs_vars = list(obs_zonal_pd.index[obs_zonal_pd.isna()])
-        obs_zonal_pd = obs_zonal_pd.dropna()
-        
-        nan_ppe_vars = list(ppe_zonal_pd.columns[ppe_zonal_pd.isna().any()])
-        ppe_zonal_pd = ppe_zonal_pd.dropna(axis = 1)
-
-        if sorted(nan_obs_vars) == sorted(nan_ppe_vars):
-            print("nan variables matching between obs and simulation")
         else:
-            print("non variables not matching between obs and simulation")
-        ############################################################################################################
-        
-        ppe_manual_list = []
-        obs_manual_list = []
-        manual_name_list = []
+            ppe_zonal_list = []
+            obs_zonal_list = []
     
-        for row_ind, row in manul_ppe_info.iterrows():
             
-            temp_obs = self.obs[self.obs_dict[row.nm]].sel(lat = slice(row.lat_min, row.lat_max), lon = slice(row.lon_min, row.lon_max)).mean(dim = ["lat", "lon"]).values
-            if ~np.isnan(temp_obs):
-                temp_ppe = self.ppe[row.nm].sel(lat = slice(row.lat_min, row.lat_max), lon = slice(row.lon_min, row.lon_max)).mean(dim = ["lat", "lon"]).to_dataframe()
+            lab_bin_labels = np.char.add(np.char.add(lat_bins[:-1].astype(str), "to"), lat_bins[1:].astype(str))
+            lab_bin_labels = np.char.add("zonal_", lab_bin_labels)
+            ############################################################################################################
+            for cam_nm, obs_nm in self.obs_dict.items():
+            
+                ppe_da = self.ppe[cam_nm]
+                filter_tf = self.obs[obs_nm].notnull()           ## ## Take out the na values that are in obs from the PPE 
+                ppe_da = ppe_da.where(filter_tf)
+    
+    
                 
-                manual_name_list.append("_".join(row.astype(str)))
-                ppe_manual_list.append(temp_ppe)
-                obs_manual_list.append(temp_obs)
+                zonal_ppe_temp = (ppe_da.mean(dim  = "lon", 
+                                              skipna = True).groupby_bins("lat",lat_bins, labels = lab_bin_labels).mean(dim = "lat", skipna = True).to_dataframe().unstack(level = 1))
+                
+                zonal_ppe_temp.columns.name = None # At this point, zonal_ppe_temp has two level in the columns
+                zonal_ppe_temp.columns = ["_".join(col) for col in list(zonal_ppe_temp.columns)] # The comprehension unpack the two levels
+                
+            
+                zonal_obs_temp = self.obs[obs_nm].mean(dim = "lon", skipna = True).groupby_bins("lat",lat_bins, labels = lab_bin_labels).mean(dim = "lat", skipna = True).to_series()
+                zonal_obs_temp.index = zonal_ppe_temp.columns
+            
+                ppe_zonal_list.append(zonal_ppe_temp)
+                obs_zonal_list.append(zonal_obs_temp)
+            
+            ppe_zonal_pd = pd.concat(ppe_zonal_list, axis = 1)
+            obs_zonal_pd = pd.concat(obs_zonal_list)
+    
+            nan_obs_vars = list(obs_zonal_pd.index[obs_zonal_pd.isna()])
+            obs_zonal_pd = obs_zonal_pd.dropna()
+            
+            nan_ppe_vars = list(ppe_zonal_pd.columns[ppe_zonal_pd.isna().any()])
+            ppe_zonal_pd = ppe_zonal_pd.dropna(axis = 1)
+    
+            if sorted(nan_obs_vars) == sorted(nan_ppe_vars):
+                print("nan variables matching between obs and simulation")
             else:
-                print("??")        
-    
-    
-        ppe_manual_pd = pd.concat(ppe_manual_list,axis = 1)
-        obs_manual_pd = pd.Series(obs_manual_list)
-    
-        ppe_manual_pd.columns = manual_name_list
-        obs_manual_pd.index = manual_name_list
-        ############################################################################################################
-    
-        ppe_pd = pd.concat([ppe_zonal_pd, ppe_manual_pd], axis = 1)
-        obs_pd = pd.concat([obs_zonal_pd, obs_manual_pd])
+                print("non variables not matching between obs and simulation")
+            ############################################################################################################
+            
+            ppe_manual_list = []
+            obs_manual_list = []
+            manual_name_list = []
         
-        #ppe_pd.to_csv(os.path.join(self.path, "tabs/", "ppe_tab.csv"), index = True)
-        #obs_pd.to_csv(os.path.join(self.path, "tabs/", "obs_tab.csv"), index=True)
-
-        ppe_pd.to_csv(self.case.tabs / "ppe_tab.csv", index=True)
-        obs_pd.to_csv(self.case.tabs / "obs_tab.csv", index=True)
-
-        print("Zonalized and manually selected obs and ppe written as csv")
-        self.ppe_pd = ppe_pd
-        self.obs_pd = obs_pd
-        self.var_nm = list(ppe_pd.columns)
+            for row_ind, row in manul_ppe_info.iterrows():
+                
+                temp_obs = self.obs[self.obs_dict[row.nm]].sel(lat = slice(row.lat_min, row.lat_max), lon = slice(row.lon_min, row.lon_max)).mean(dim = ["lat", "lon"]).values
+                if ~np.isnan(temp_obs):
+                    temp_ppe = self.ppe[row.nm].sel(lat = slice(row.lat_min, row.lat_max), lon = slice(row.lon_min, row.lon_max)).mean(dim = ["lat", "lon"]).to_dataframe()
+                    
+                    manual_name_list.append("_".join(row.astype(str)))
+                    ppe_manual_list.append(temp_ppe)
+                    obs_manual_list.append(temp_obs)
+                else:
+                    print("??")        
+        
+        
+            ppe_manual_pd = pd.concat(ppe_manual_list,axis = 1)
+            obs_manual_pd = pd.Series(obs_manual_list)
+        
+            ppe_manual_pd.columns = manual_name_list
+            obs_manual_pd.index = manual_name_list
+            ############################################################################################################
+            if self.added_data is not None:
+                if np.array_equal(self.added_data[0].index.to_numpy(), ppe_zonal_pd.index.to_numpy()):
+                    print("Added data index matching")
+                    ppe_pd = pd.concat([ppe_zonal_pd, ppe_manual_pd, self.added_data[0]], axis = 1)
+                    obs_pd = pd.concat([obs_zonal_pd, obs_manual_pd, self.added_data[1]])
+    
+                else:
+                    print('Added data index not matching, break')
+                    return 
+                    
+            else:
+                ppe_pd = pd.concat([ppe_zonal_pd, ppe_manual_pd], axis = 1)
+                obs_pd = pd.concat([obs_zonal_pd, obs_manual_pd])
+                
+            #ppe_pd.to_csv(os.path.join(self.path, "tabs/", "ppe_tab.csv"), index = True)
+            #obs_pd.to_csv(os.path.join(self.path, "tabs/", "obs_tab.csv"), index=True)
+    
+            ppe_pd.to_csv(self.case.tabs / "ppe_tab.csv", index=True)
+            obs_pd.to_csv(self.case.tabs / "obs_tab.csv", index=True)
+    
+            print("Zonalized and manually selected obs and ppe written as csv")
+            self.ppe_pd = ppe_pd
+            self.obs_pd = obs_pd
+            self.var_nm = list(ppe_pd.columns)
 
 
 def visualize_emulation(X_gcm_norm, X_emu, y_gcm, y_emu_norm, para_inds, tf_mask, para_nm, obs, yname):
@@ -216,13 +242,13 @@ def meta_one_hot_shot(meta, para_nm):
 
 
 class Prep_Mask_Generation:
-    def __init__(self, working_dir, case_name, ppe, obs, obs_dict, para, lat_bins, manul_ppe_info, n_sample = 1000000):
+    def __init__(self, working_dir, case_name, ppe, obs, obs_dict, para, lat_bins, manul_ppe_info, added_ppe_obs = None, n_sample = 1000000):
         
         self.case = CaseDirectory(working_dir, case_name)
         self.data_gcm = DataPrep(ppe, obs, obs_dict, para, self.case)
         self.data_gcm.sample_uniform(n_sample)
         
-        self.features = FeatureBuilder(ppe, obs, obs_dict, self.case)
+        self.features = FeatureBuilder(ppe, obs, obs_dict, added_ppe_obs, self.case)
         self.features.zonalize_obs_ppe(lat_bins, manul_ppe_info)
 
         

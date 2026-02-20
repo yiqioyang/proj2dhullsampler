@@ -41,6 +41,7 @@ class HistoryMatching:
     def __init__(self, working_dir, case_name, ppe_para, threshold_level = 2.0):
         self.root = Path(working_dir) / case_name
         self.tf_masks = pd.read_csv(self.root / f'tf_masks_level_{threshold_level}.csv', index_col=0)
+        
         self.meta = pd.read_csv(self.root / 'meta.csv', index_col = 0)
         self.p_emu = xr.open_dataset(self.root / 'sampled_parameters.nc').to_dataframe()
         self.var_nm = list(self.tf_masks.columns)
@@ -52,6 +53,7 @@ class HistoryMatching:
         self.n_sample = self.tf_masks.shape[0]
 
         self.dropped_vars.nooverlap2d = []
+        
     def drop_by_name(self, var_to_exclude):
         var_to_drop = []
         for v in var_to_exclude:
