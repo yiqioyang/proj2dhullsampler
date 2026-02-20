@@ -144,7 +144,7 @@ def orchestrate_test(para_seq, X, tf_masks, para_nm, grouped_hulls, paras_vars, 
     para_non_over = []
     var_drop = {}
     error_sample_size_scaling = 1
-    
+    out_prev = None
     non_over_count = 0
     for p_count, p in enumerate(para_seq):
         print(f'Running {p}, the {p_count}th simulation')

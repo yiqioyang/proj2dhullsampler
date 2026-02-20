@@ -77,12 +77,12 @@ class DataPrep:
 
 
 class FeatureBuilder:
-    def __init__(self, ppe, obs, obs_dict, case: CaseDirectory):
+    def __init__(self, ppe, obs, obs_dict, added_data, case: CaseDirectory):
         self.ppe = ppe
         self.obs = obs
         self.obs_dict = obs_dict
         self.case = case  
-        
+        self.added_data = added_data
     def zonalize_obs_ppe(self, lat_bins, manul_ppe_info):
         ppe_zonal_list = []
         obs_zonal_list = []
@@ -149,10 +149,20 @@ class FeatureBuilder:
         ppe_manual_pd.columns = manual_name_list
         obs_manual_pd.index = manual_name_list
         ############################################################################################################
-    
-        ppe_pd = pd.concat([ppe_zonal_pd, ppe_manual_pd], axis = 1)
-        obs_pd = pd.concat([obs_zonal_pd, obs_manual_pd])
-        
+        if self.added_data is not None:
+            if np.array_equal(self.added_data[0].index.to_numpy(), ppe_zonal_pd.index.to_numpy()):
+                print("Added data index matching")
+                ppe_pd = pd.concat([ppe_zonal_pd, ppe_manual_pd, self.added_data[0]], axis = 1)
+                obs_pd = pd.concat([obs_zonal_pd, obs_manual_pd, self.added_data[1]])
+
+            else:
+                print('Added data index not matching, break')
+                return 
+                
+        else:
+            ppe_pd = pd.concat([ppe_zonal_pd, ppe_manual_pd], axis = 1)
+            obs_pd = pd.concat([obs_zonal_pd, obs_manual_pd])
+            
         #ppe_pd.to_csv(os.path.join(self.path, "tabs/", "ppe_tab.csv"), index = True)
         #obs_pd.to_csv(os.path.join(self.path, "tabs/", "obs_tab.csv"), index=True)
 
@@ -216,13 +226,13 @@ def meta_one_hot_shot(meta, para_nm):
 
 
 class Prep_Mask_Generation:
-    def __init__(self, working_dir, case_name, ppe, obs, obs_dict, para, lat_bins, manul_ppe_info, n_sample = 1000000):
+    def __init__(self, working_dir, case_name, ppe, obs, obs_dict, para, lat_bins, manul_ppe_info, added_ppe_obs = None, n_sample = 1000000):
         
         self.case = CaseDirectory(working_dir, case_name)
         self.data_gcm = DataPrep(ppe, obs, obs_dict, para, self.case)
         self.data_gcm.sample_uniform(n_sample)
         
-        self.features = FeatureBuilder(ppe, obs, obs_dict, self.case)
+        self.features = FeatureBuilder(ppe, obs, obs_dict, added_ppe_obs, self.case)
         self.features.zonalize_obs_ppe(lat_bins, manul_ppe_info)
 
         

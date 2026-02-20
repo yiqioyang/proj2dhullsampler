@@ -18,11 +18,10 @@ from concurrent.futures import ProcessPoolExecutor, as_completed
 
 from shapely import points, contains
 import random
+import seaborn as sns
 
 
-
-from prep_class import (meta_one_hot_shot,
-visualize_emulation)
+from funs.prep_class import (meta_one_hot_shot, visualize_emulation)
 
 class EmulatedDataStorage:
     """
@@ -31,6 +30,9 @@ class EmulatedDataStorage:
     """
     def __init__(self):
         pass
+
+
+
 
 
 
@@ -66,7 +68,64 @@ class Analysis:
         
         y_emu_norm = self.load_certainy(yname)
         X_emu = self.p_emu
+
         
         visualize_emulation(X_gcm_norm = self.data.ppe_para_norm, X_emu = X_emu, y_gcm = self.data.pd_ppe[yname], y_emu_norm = y_emu_norm, 
                             para_inds = self.meta[yname], tf_mask = self.tf_masks[yname], 
                             para_nm = self.para_nm, obs = self.data.pd_obs.loc[yname].values, yname = yname)
+
+
+    def plot_by_para(self, para, index = None,ncols=4, figsize=(12, 8), sharex=True, sharey=False):
+
+        columns = sorted(list(self.meta_onehot.index[self.meta_onehot[para]]))
+
+        
+        n = len(columns)
+        nrows = math.ceil(n / ncols)
+        fig, axes = plt.subplots(nrows, ncols, figsize=figsize, sharex=sharex, sharey=sharey)
+        axes = axes.ravel() if n > 1 else [axes]
+
+        x_val = self.data.ppe_para[para]
+        
+        for i, col in enumerate(columns):
+            axes[i].scatter(x_val, self.data.pd_ppe[col])
+            axes[i].set_xlabel(para)
+            if index is not None:
+                axes[i].scatter(x_val.loc[index], self.data.pd_ppe[col].loc[index])
+            axes[i].set_ylabel(col)
+            axes[i].axhline(self.data.pd_obs.loc[col].values)
+            
+    
+        # Hide any unused axes
+        for j in range(i + 1, len(axes)):
+            axes[j].axis("off")
+    
+        fig.tight_layout();
+        return fig, axes    
+
+    def plot_onehot(self, figsize = (12, 8), dpi = 120, xstep = 3):
+    
+        data = self.meta_onehot.T.astype(int)
+        
+        plt.figure(figsize=(12, 8), dpi=120)
+        ax = sns.heatmap(
+            data,
+            cmap="viridis",
+            cbar_kws={"label": "False=0, True=1"},
+            yticklabels=True,
+            xticklabels=False
+        )
+        
+        # show every Nth x label
+
+        x_labels = self.meta_onehot.index[::xstep]
+        x_pos = np.arange(0, data.shape[1], xstep) + 0.5  # center ticks on cells
+        
+        ax.set_xticks(x_pos)
+        ax.set_xticklabels(x_labels, rotation=90, fontsize=8)
+        
+        ax.set_xlabel("")
+        ax.set_ylabel("")
+        plt.tight_layout()
+        plt.show()
+        
