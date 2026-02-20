@@ -11,13 +11,15 @@ from itertools import islice
 # > ./build_ppe_CAM_cases.py
 
 # Edit below to set up your cases
-cesmroot  = '/glade/work/addisus/sandboxes/cam6_4_127/'
-basecasename = "v0_seg2"
-baseroot = os.path.join("/glade/work/qingyuany/simulations/", "cam7_re", basecasename)
+
+#cesmroot  = '/glade/work/addisus/sandboxes/cam6_4_127/'
+cesmroot = '/glade/work/hannay/cesm_tags/cesm3_0_alpha07g'
+basecasename = "wave1"
+baseroot = os.path.join("/glade/work/qingyuany/simulations/", "cam7_correct_v", basecasename)
 res = "ne30pg3_ne30pg3_mg17"
 compset = "FHISTC_LTso" #"FHIST"
 
-paramfile = "/glade/work/qingyuany/cam7_re/v0/para_seg2.nc" #"est_paras_scale20_original_scale.nc" #"parameter38_100.nc" 
+paramfile = "/glade/work/addisus/scam_scripts/PPE_250_ensemble/parameter38_100.nc" #"est_paras_scale20_original_scale.nc" #"parameter38_100.nc" 
 ensemble_startval = "001" # The startval strings should be the same length, or else. 
 basecase_startval = "000"
 project = "P93300313"
@@ -29,7 +31,7 @@ specify_user_num_sims = False # If True, use "user_num_sims" number of sims. Thi
                              # If False, automatically create the same number of cases
                              # as param values in the paramfile. This is the safest 
                              # option.
-user_num_sims = 50
+user_num_sims = 100
 
 #command = "./xmlchange  -id CAM_CONFIG_OPTS -val ' -phys cam7'"
 # Currently only number of years set (no months or days)
