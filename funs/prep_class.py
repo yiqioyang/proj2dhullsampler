@@ -96,7 +96,7 @@ class FeatureBuilder:
     
             self.ppe_pd = self.added_data[0]
             self.obs_pd = self.added_data[1]
-            self.var_nm = list(ppe_pd.columns)
+            self.var_nm = list(self.ppe_pd.columns)
 
         else:
             ppe_zonal_list = []
