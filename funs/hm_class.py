@@ -76,7 +76,7 @@ class HistoryMatching:
     
     def drop_by_nvar_per_pair(self, n_var_thre = 1):
         self.dropped_vars.local = []
-        for k, v in self.paras_vars:
+        for k, v in list(self.paras_vars.items()):
             if len(v) <= n_var_thre:
                 self.dropped_vars.local.append(v)
                 del self.paras_vars[k]
@@ -86,7 +86,6 @@ class HistoryMatching:
         self.meta_onehot = meta_one_hot_shot(self.meta, self.para_nm)
         
         
-
 
     def hull_for_each(self, shape_alpha = 5):
         hull_per_var = {}
