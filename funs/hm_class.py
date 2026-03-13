@@ -8,15 +8,11 @@ import numpy as np
 import re
 from joblib import Parallel, delayed
 from pathlib import Path
-import matplotlib.pyplot as plt
+
 import alphashape
 from itertools import combinations
 from collections import defaultdict, deque
-from concurrent.futures import ThreadPoolExecutor
-
 from concurrent.futures import ProcessPoolExecutor, as_completed
-
-
 from shapely import points, contains
 import random
 
