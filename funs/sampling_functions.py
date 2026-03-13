@@ -167,6 +167,7 @@ def orchestrate_test(para_seq, X, tf_masks, para_nm, grouped_hulls, paras_vars, 
             check_pt = test_ind_vars(out_prev, X, para_nm, tf_masks, grouped_hulls, p, paras_vars, shape_alpha = 5)
             if check_pt is None:
                 para_l.remove(p)
+                var_drop[p] = paras_vars[p]
                 del grouped_hulls[p]
                 print(f'\t \t \t \t {p} is causing trouble and is skipped')
                 non_over_count = non_over_count + 1

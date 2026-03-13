@@ -73,14 +73,20 @@ class HistoryMatching:
         
         self.var_nm = list(self.tf_masks.columns)
 
+    
+    def drop_by_nvar_per_pair(self, n_var_thre = 1):
+        self.dropped_vars.local = []
+        for k, v in self.paras_vars:
+            if len(v) <= n_var_thre:
+                self.dropped_vars.local.append(v)
+                del self.paras_vars[k]
+    
     def update_meta(self, occurence_threshold = 2):
         self.meta = self.meta[self.var_nm]
         self.meta_onehot = meta_one_hot_shot(self.meta, self.para_nm)
-        p_occur_count = self.meta_onehot.sum(axis = 0)
-        self.p_occur_count = p_occur_count
         
-#        p_sensitive = list(p_occur_count[p_occur_count > occurence_threshold].index)
-#        self.meta_onehot = self.meta_onehot[p_sensitive]
+        
+
 
     def hull_for_each(self, shape_alpha = 5):
         hull_per_var = {}
