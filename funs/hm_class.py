@@ -21,7 +21,10 @@ from shapely import points, contains
 import random
 
 
-from funs import sampling_functions
+from funs.sampling_functions import (
+    orchestrate_test, test_ind_vars,sample_from_hulls_n,_one_batch,sample_from_hull)
+
+from funs.aux import para_csv2nc
 
 def meta_one_hot_shot(meta, para_nm):
     meta = meta.transpose()
@@ -197,6 +200,9 @@ class HistoryMatching:
 
     def orchestrate(self, n_pts = 10000, n_threshold = 100, sample_threshold = 10**5, max_workers = 31):
 
+
+        para_seq = list(self.grouped_hulls.keys())
+        
         check = orchestrate_test(para_seq, self.p_emu, self.tf_masks,  
                          self.para_nm, self.grouped_hulls, self.paras_vars, n_pts, n_threshold, sample_threshold, max_workers)
 
@@ -204,12 +210,30 @@ class HistoryMatching:
         self.results.para_l = check[1]
         self.dropped_vars.during_iteration = check[3]
 
-    def draw(self, n_pts=50000, n_threshold=5000, sample_threshold=10**8,max_workers=32):
+    def draw(self, n_pts=50000, n_threshold=5000, sample_threshold=10**8, max_workers=32, n_max = 1000):
         valid_hulls = self.results.valid_hulls
-        samples = sample_from_hulls_n(list(valid_hulls.keys()), test_case.para_nm, valid_hulls, n_pts, n_threshold, sample_threshold,max_workers)
+        samples = sample_from_hulls_n(list(valid_hulls.keys()), self.para_nm, valid_hulls, n_pts, n_threshold, max_workers, sample_threshold)
+        if samples.shape[0]>n_max:
+            samples = samples.iloc[:n_max]
+            
         self.results.unscaled_samples = samples
         self.results.realscale_samples = self.rescale_para(samples)
 
 
 
+    def save_samples(self, n = 100):
+        csv_path1 = self.root / 'full_sel_para_realscale.csv'
+        nc_path1 = self.root / 'full_sel_para_realscale.nc'
 
+        csv_path2 = self.root / 'sel_para_realscale.csv'
+        nc_path2 = self.root / 'sel_para_realscale.nc'
+
+
+        
+        self.results.realscale_samples.to_csv(csv_path1)
+        para_csv2nc(csv_path1, nc_path1, self.results.realscale_samples.shape[0])
+
+        self.results.realscale_samples.iloc[:n,:].to_csv(csv_path2)
+        para_csv2nc(csv_path2, nc_path2, n)
+        
+        
