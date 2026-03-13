@@ -20,6 +20,9 @@ from concurrent.futures import ProcessPoolExecutor, as_completed
 from shapely import points, contains
 import random
 
+
+from funs import sampling_functions
+
 def meta_one_hot_shot(meta, para_nm):
     meta = meta.transpose()
     meta_one_hot = pd.DataFrame(False, index=meta.index, columns=para_nm)
@@ -52,6 +55,8 @@ class HistoryMatching:
         self.dropped_vars = EmulatedDataStorage()
         self.n_sample = self.tf_masks.shape[0]
 
+        self.results = EmulatedDataStorage()
+        
         self.dropped_vars.nooverlap2d = []
         
     def drop_by_name(self, var_to_exclude):
@@ -190,6 +195,21 @@ class HistoryMatching:
         return (ppe_para.max() - ppe_para.min()) * sampled_para + ppe_para.min()
     
 
-    
+    def orchestrate(self, n_pts = 10000, n_threshold = 100, sample_threshold = 10**5, max_workers = 31):
 
-    
+        check = orchestrate_test(para_seq, self.p_emu, self.tf_masks,  
+                         self.para_nm, self.grouped_hulls, self.paras_vars, n_pts, n_threshold, sample_threshold, max_workers)
+
+        self.results.valid_hulls = check[0]
+        self.results.para_l = check[1]
+        self.dropped_vars.during_iteration = check[3]
+
+    def draw(self, n_pts=50000, n_threshold=5000, sample_threshold=10**8,max_workers=32):
+        valid_hulls = self.results.valid_hulls
+        samples = sample_from_hulls_n(list(valid_hulls.keys()), test_case.para_nm, valid_hulls, n_pts, n_threshold, sample_threshold,max_workers)
+        self.results.unscaled_samples = samples
+        self.results.realscale_samples = self.rescale_para(samples)
+
+
+
+
