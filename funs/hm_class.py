@@ -5,11 +5,6 @@ from pathlib import Path
 import alphashape
 from itertools import combinations
 
-
-import numpy as np
-from collections import defaultdict, deque
-
-
 from .sampling_functions import orchestrate_test, sample_from_hulls_n
 from .aux import para_csv2nc
 
