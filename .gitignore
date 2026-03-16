@@ -18,6 +18,10 @@ env/
 .env
 common_vars.py
 
+# Local/archive project directories
+postpre/
+post_processing_old/
+
 # OS/editor noise
 .DS_Store
 *.swp
