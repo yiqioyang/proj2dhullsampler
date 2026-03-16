@@ -1,7 +1,7 @@
 import xarray as xr
 import pandas as pd
 from pathlib import Path
-
+import json
 import alphashape
 from itertools import combinations
 
@@ -226,4 +226,46 @@ class HistoryMatching:
         self.results.realscale_samples.iloc[:n,:].to_csv(csv_path2)
         para_csv2nc(csv_path2, nc_path2, n)
         
-        
+    
+
+    def write_specifications(self):
+        def _key_to_str(key):
+            if isinstance(key, tuple):
+                return "(" + ", ".join(str(k) for k in key) + ")"
+            return str(key)
+
+        def _to_jsonable(value):
+            if isinstance(value, dict):
+                return {_key_to_str(k): _to_jsonable(v) for k, v in value.items()}
+            if isinstance(value, (list, tuple, set)):
+                return [_to_jsonable(v) for v in value]
+            if hasattr(value, "item"):
+                # Handles numpy scalar types (e.g., np.int64, np.float64).
+                try:
+                    return value.item()
+                except Exception:
+                    pass
+            return value
+
+        spec_dict = {
+            "emulator_threshold": getattr(self.specifications, "emulator_threshold", None),
+            "n_survive": getattr(self.specifications, "n_survive", None),
+            "n_var_thre_per_parapair": getattr(self.specifications, "n_var_thre_per_parapair", None),
+            "overlapping_threshold": getattr(self.specifications, "overlapping_threshold", None),
+            "drop_by_name": getattr(self.specifications, "drop_by_name", None),
+            "drop_vars_2d": getattr(self.specifications, "drop_vars_2d", None),
+            "dropped_during_orchastrate": getattr(self.specifications, "dropped_during_orchastrate", None),
+            'para_var' : self.paras_vars,
+        }
+        spec_dict = _to_jsonable(spec_dict)
+
+        # Python-friendly + human-friendly canonical output
+        json_path = self.root / "specifications.json"
+        with open(json_path, "w", encoding="utf-8") as f:
+            json.dump(spec_dict, f, indent=2, sort_keys=True, ensure_ascii=False)
+
+        dropped_vars_dict = _to_jsonable(vars(self.dropped_vars))
+        dropped_vars_path = self.root / "dropped_vars.json"
+        with open(dropped_vars_path, "w", encoding="utf-8") as f:
+            json.dump(dropped_vars_dict, f, indent=2, sort_keys=True, ensure_ascii=False)
+
