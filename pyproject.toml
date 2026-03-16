@@ -3,9 +3,9 @@ requires = ["setuptools>=68", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "spatialtuning"
+name = "proj2dhullsampler"
 version = "0.1.0"
-description = "Tools for spatial tuning analysis and history matching"
+description = "Tools for sampling parameters"
 readme = "README.md"
 requires-python = ">=3.10"
 authors = [
@@ -34,7 +34,7 @@ dev = [
 ]
 
 [tool.setuptools]
-packages = ["funs"]
+packages = ["proj2dhullsampler"]
 
 [tool.black]
 line-length = 88
