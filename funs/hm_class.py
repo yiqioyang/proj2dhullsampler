@@ -17,10 +17,10 @@ from shapely import points, contains
 import random
 
 
-from funs.sampling_functions import (
+from .sampling_functions import (
     orchestrate_test, test_ind_vars,sample_from_hulls_n,_one_batch,sample_from_hull)
 
-from funs.aux import para_csv2nc
+from .aux import para_csv2nc
 
 def meta_one_hot_shot(meta, para_nm):
     meta = meta.transpose()

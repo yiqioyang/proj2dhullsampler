@@ -21,7 +21,7 @@ import random
 import seaborn as sns
 
 
-from funs.prep_class import (meta_one_hot_shot, visualize_emulation)
+from .prep_class import meta_one_hot_shot, visualize_emulation
 
 class EmulatedDataStorage:
     """
