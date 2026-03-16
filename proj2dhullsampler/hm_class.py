@@ -75,6 +75,9 @@ class HistoryMatching:
                 self.dropped_vars.local.append(v)
                 del self.paras_vars[k]
     
+        self.specifications.n_var_thre_per_parapair = n_var_thre
+
+
     def update_meta(self, occurence_threshold = 2):
         self.meta = self.meta[self.var_nm]
         self.meta_onehot = meta_one_hot_shot(self.meta, self.para_nm)
@@ -95,7 +98,7 @@ class HistoryMatching:
 
         self.hull_per_var = hull_per_var
 
-    def group_para_climatology(self):
+    def group_para_climatology(self, overlapping_threshold = 10000):
 
         vars = self.var_nm
         paras_vars = {}
@@ -117,11 +120,11 @@ class HistoryMatching:
         for k, v in paras_vars.items():
             temp_count = self.tf_masks[v].all(axis = 1).sum()
             print(f'{k[0]:<40} and {k[1]:<40}: {temp_count:>8}')
-            if temp_count < 10000:
+            if temp_count < overlapping_threshold:
                 paras_vars_0[k] = v
 
         self.paras_vars_0 = paras_vars_0
-
+        self.specifications.overlapping_threshold = overlapping_threshold
         
         
     def shuffle_vars(self, n_comb = 2):
