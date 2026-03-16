@@ -1,7 +1,7 @@
-"""Public API for the funs package.
+"""Public API for the proj2dhullsampler package.
 
 Use this module for one-line imports in notebooks/scripts, e.g.:
-	from funs import Analysis, HistoryMatching, Prep_Mask_Generation
+	from proj2dhullsampler import Analysis, HistoryMatching, Prep_Mask_Generation
 """
 
 from .analysis import Analysis

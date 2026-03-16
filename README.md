@@ -5,15 +5,15 @@ Utilities for spatial tuning workflows, including data preparation, analysis, hi
 ## Package Structure
 
 Main package:
-- `funs/analysis.py`: analysis helpers and plotting wrappers
-- `funs/prep_class.py`: preparation and mask generation workflows
-- `funs/hm_class.py`: history matching workflow
-- `funs/sampling_functions.py`: hull-based sampling helpers
-- `funs/plotting.py`: plotting utilities
-- `funs/aux.py`: I/O and metric helpers
-- `funs/utils.py`: shared numeric and geometry utilities
+- `proj2dhullsampler/analysis.py`: analysis helpers and plotting wrappers
+- `proj2dhullsampler/prep_class.py`: preparation and mask generation workflows
+- `proj2dhullsampler/hm_class.py`: history matching workflow
+- `proj2dhullsampler/sampling_functions.py`: hull-based sampling helpers
+- `proj2dhullsampler/plotting.py`: plotting utilities
+- `proj2dhullsampler/aux.py`: I/O and metric helpers
+- `proj2dhullsampler/utils.py`: shared numeric and geometry utilities
 
-Public API is exposed in `funs/__init__.py`.
+Public API is exposed in `proj2dhullsampler/__init__.py`.
 
 ## Installation
 
@@ -32,7 +32,7 @@ pip install -e .[dev]
 ## Quick Start
 
 ```python
-from funs import Analysis, HistoryMatching, Prep_Mask_Generation
+from proj2dhullsampler import Analysis, HistoryMatching, Prep_Mask_Generation
 
 # Example: initialize analysis
 # analysis = Analysis(working_dir, case_name, ppe_para)
@@ -41,7 +41,7 @@ from funs import Analysis, HistoryMatching, Prep_Mask_Generation
 ## Notebooks
 
 Project notebooks are under the repository root and `notebooks/`.
-Prefer importing from `funs` rather than using `%run` on module files.
+Prefer importing from `proj2dhullsampler` rather than using `%run` on module files.
 
 ## Development
 
