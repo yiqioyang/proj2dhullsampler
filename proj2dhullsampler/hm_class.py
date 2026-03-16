@@ -42,7 +42,9 @@ class HistoryMatching:
         self.n_sample = self.tf_masks.shape[0]
 
         self.results = EmulatedDataStorage()
-        
+        self.specifications = EmulatedDataStorage()
+        self.specifications.emulator_threshold = threshold_level
+
         self.dropped_vars.nooverlap2d = []
         
     def drop_by_name(self, var_to_exclude):
@@ -54,6 +56,7 @@ class HistoryMatching:
 
         self.var_nm = list(self.tf_masks.columns)
         self.dropped_vars.by_name = var_to_drop
+        self.specifications.drop_by_name = var_to_exclude
 
     def drop_by_n_survive(self, n_survive):
         survive_summary = self.tf_masks.sum(axis = 0)
@@ -61,7 +64,7 @@ class HistoryMatching:
         self.dropped_vars.tight   = list(survive_summary[survive_summary < n_survive].index)
 
         self.tf_masks = self.tf_masks.drop(columns = self.dropped_vars.useless + self.dropped_vars.tight)
-        
+        self.specifications.n_survive = n_survive
         self.var_nm = list(self.tf_masks.columns)
 
     
@@ -147,7 +150,7 @@ class HistoryMatching:
         self.meta = self.meta[self.var_nm]
         self.meta_onehot = meta_one_hot_shot(self.meta, self.para_nm)
         self.dropped_vars.nooverlap2d.append(vars_to_drop)
-
+        self.specifications.drop_vars_2d = vars_to_drop
         
     
     def visualize(self, para_pair):
@@ -192,6 +195,7 @@ class HistoryMatching:
         self.results.valid_hulls = check[0]
         self.results.para_l = check[1]
         self.dropped_vars.during_iteration = check[3]
+        self.specifications.dropped_during_orchastrate = check[3]
 
     def draw(self, n_pts=50000, n_threshold=5000, sample_threshold=10**8, max_workers=32, n_max = 1000):
         valid_hulls = self.results.valid_hulls
