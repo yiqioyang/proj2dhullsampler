@@ -141,7 +141,7 @@ def test_ind_vars(X_prev, X, para_nm, tf_masks, grouped_hulls, para, paras_vars,
 
 def orchestrate_test(para_seq, X, tf_masks, para_nm, grouped_hulls, paras_vars, n_pts=10000, n_threshold=10000, sample_threshold = 10**7, max_workers=None):
     para_l = []
-    para_non_over = []
+    
     var_drop = {}
     error_sample_size_scaling = 1
     out_prev = None
@@ -167,10 +167,13 @@ def orchestrate_test(para_seq, X, tf_masks, para_nm, grouped_hulls, paras_vars, 
             check_pt = test_ind_vars(out_prev, X, para_nm, tf_masks, grouped_hulls, p, paras_vars, shape_alpha = 5)
             if check_pt is None:
                 para_l.remove(p)
+                
+                var_drop[p] = paras_vars[p]
                 del grouped_hulls[p]
+                del paras_vars[p]
                 print(f'\t \t \t \t {p} is causing trouble and is skipped')
                 non_over_count = non_over_count + 1
-                para_non_over.append(p)
+                
                 
                 
             else:
@@ -186,11 +189,7 @@ def orchestrate_test(para_seq, X, tf_masks, para_nm, grouped_hulls, paras_vars, 
 
         print("======================================================================")
 
-    
-        # if non_over_count > 5:
-        #     print("Too many non-overlapping, break the loop")
-        #     return para_l, para_non_over
 
         
         
-    return para_l, para_non_over, grouped_hulls, paras_vars, var_drop, out_prev
+    return grouped_hulls, para_l, paras_vars, var_drop, out_prev

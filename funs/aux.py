@@ -92,7 +92,7 @@ def metric_cal_single(obs_dict, obs, ppe):
     return ave, bias, rmse
 
 
-metrics = metric_cal_single(obs_dict, obs_ds, ppev1)
+#metrics = metric_cal_single(obs_dict, obs_ds, ppev1)
 
 
 
