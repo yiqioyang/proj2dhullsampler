@@ -287,11 +287,7 @@ class Prep_Mask_Generation:
 
         for path in mean_paths:
             var_name_file = path.split("/")[-1].split("_mean_std_")[1]
-            if "zonal" in var_name_file:
-                cli_temp = var_name_file.split("_zonal")[0]
-                
-            else:
-                cli_temp = var_name_file.split("_")[0]  #% xxx
+
                     
             var_name = var_name_file.split(".")[0]
             
