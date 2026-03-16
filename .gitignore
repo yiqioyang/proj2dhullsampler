@@ -19,8 +19,7 @@ env/
 common_vars.py
 
 # Local/archive project directories
-postpre/
-post_processing_old/
+untracked_folders/
 
 # OS/editor noise
 .DS_Store
