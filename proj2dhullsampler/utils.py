@@ -2,29 +2,21 @@
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
-from itertools import permutations
+import itertools
 from itertools import combinations
 
 from tqdm import tqdm
-from tqdm.notebook import tqdm
 from functools import reduce
 from functools import partial
 import trimesh
 from shapely import points, contains
 from collections import Counter
 
-
 from sklearn.gaussian_process import GaussianProcessRegressor
 from sklearn.gaussian_process.kernels import Matern, WhiteKernel, ConstantKernel as C
-from concurrent.futures import ProcessPoolExecutor, as_completed
-
-
+from concurrent.futures import ProcessPoolExecutor
 
 from scipy.spatial import Delaunay
-
-import numpy as np
-import numpy as np
-import matplotlib.pyplot as plt
 import alphashape
 from shapely.geometry import Point
 import joblib
@@ -622,10 +614,7 @@ import alphashape
 from shapely.geometry import Point
 from scipy.spatial import Delaunay
 #import plotly.graph_objects as go
-import alphashape
-import itertools
 
-import itertools
 
 def alpha_shape_3D(points, alpha):
     

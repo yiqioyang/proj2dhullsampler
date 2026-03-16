@@ -1,11 +1,8 @@
 import xarray as xr
 import pandas as pd
 import glob
-import os
-import math
 
 import numpy as np
-import re
 from joblib import Parallel, delayed
 from pathlib import Path
 import matplotlib.pyplot as plt
@@ -179,8 +176,6 @@ class FeatureBuilder:
                 ppe_pd = pd.concat([ppe_zonal_pd, ppe_manual_pd], axis = 1)
                 obs_pd = pd.concat([obs_zonal_pd, obs_manual_pd])
                 
-            #ppe_pd.to_csv(os.path.join(self.path, "tabs/", "ppe_tab.csv"), index = True)
-            #obs_pd.to_csv(os.path.join(self.path, "tabs/", "obs_tab.csv"), index=True)
     
             ppe_pd.to_csv(self.case.tabs / "ppe_tab.csv", index=True)
             obs_pd.to_csv(self.case.tabs / "obs_tab.csv", index=True)
@@ -266,7 +261,7 @@ class Prep_Mask_Generation:
         return xr.open_dataset(self.case.root / "sampled_parameters.nc").to_dataframe()
     
     def sensitivity_emulation(self, n_sens_p = 2, n_cpus = 15):
-        from funs.utils import gp_training_application, fit_gp_for_single_1d, fit_all_gp_models_1d
+        from .utils import gp_training_application, fit_gp_for_single_1d, fit_all_gp_models_1d
         
         para_s = xr.open_dataset(self.case.root / "sampled_parameters.nc").to_dataframe()
         

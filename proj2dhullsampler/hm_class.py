@@ -1,24 +1,13 @@
 import xarray as xr
 import pandas as pd
-import glob
-import os
-import math
-
-import numpy as np
-import re
-from joblib import Parallel, delayed
 from pathlib import Path
-import matplotlib.pyplot as plt
+import json
 import alphashape
 from itertools import combinations
-from collections import defaultdict, deque
-from concurrent.futures import ThreadPoolExecutor
 
-from concurrent.futures import ProcessPoolExecutor, as_completed
+from .sampling_functions import orchestrate_test, sample_from_hulls_n
+from .aux import para_csv2nc
 
-
-from shapely import points, contains
-import random
 
 def meta_one_hot_shot(meta, para_nm):
     meta = meta.transpose()
@@ -52,6 +41,10 @@ class HistoryMatching:
         self.dropped_vars = EmulatedDataStorage()
         self.n_sample = self.tf_masks.shape[0]
 
+        self.results = EmulatedDataStorage()
+        self.specifications = EmulatedDataStorage()
+        self.specifications.emulator_threshold = threshold_level
+
         self.dropped_vars.nooverlap2d = []
         
     def drop_by_name(self, var_to_exclude):
@@ -63,6 +56,7 @@ class HistoryMatching:
 
         self.var_nm = list(self.tf_masks.columns)
         self.dropped_vars.by_name = var_to_drop
+        self.specifications.drop_by_name = var_to_exclude
 
     def drop_by_n_survive(self, n_survive):
         survive_summary = self.tf_masks.sum(axis = 0)
@@ -70,17 +64,25 @@ class HistoryMatching:
         self.dropped_vars.tight   = list(survive_summary[survive_summary < n_survive].index)
 
         self.tf_masks = self.tf_masks.drop(columns = self.dropped_vars.useless + self.dropped_vars.tight)
-        
+        self.specifications.n_survive = n_survive
         self.var_nm = list(self.tf_masks.columns)
+
+    
+    def drop_by_nvar_per_pair(self, n_var_thre = 1):
+        self.dropped_vars.local = []
+        for k, v in list(self.paras_vars.items()):
+            if len(v) <= n_var_thre:
+                self.dropped_vars.local.append(v)
+                del self.paras_vars[k]
+    
+        self.specifications.n_var_thre_per_parapair = n_var_thre
+
 
     def update_meta(self, occurence_threshold = 2):
         self.meta = self.meta[self.var_nm]
         self.meta_onehot = meta_one_hot_shot(self.meta, self.para_nm)
-        p_occur_count = self.meta_onehot.sum(axis = 0)
-        self.p_occur_count = p_occur_count
         
-#        p_sensitive = list(p_occur_count[p_occur_count > occurence_threshold].index)
-#        self.meta_onehot = self.meta_onehot[p_sensitive]
+        
 
     def hull_for_each(self, shape_alpha = 5):
         hull_per_var = {}
@@ -96,7 +98,7 @@ class HistoryMatching:
 
         self.hull_per_var = hull_per_var
 
-    def group_para_climatology(self):
+    def group_para_climatology(self, overlapping_threshold = 10000):
 
         vars = self.var_nm
         paras_vars = {}
@@ -118,11 +120,11 @@ class HistoryMatching:
         for k, v in paras_vars.items():
             temp_count = self.tf_masks[v].all(axis = 1).sum()
             print(f'{k[0]:<40} and {k[1]:<40}: {temp_count:>8}')
-            if temp_count < 10000:
+            if temp_count < overlapping_threshold:
                 paras_vars_0[k] = v
 
         self.paras_vars_0 = paras_vars_0
-
+        self.specifications.overlapping_threshold = overlapping_threshold
         
         
     def shuffle_vars(self, n_comb = 2):
@@ -151,7 +153,7 @@ class HistoryMatching:
         self.meta = self.meta[self.var_nm]
         self.meta_onehot = meta_one_hot_shot(self.meta, self.para_nm)
         self.dropped_vars.nooverlap2d.append(vars_to_drop)
-
+        self.specifications.drop_vars_2d = vars_to_drop
         
     
     def visualize(self, para_pair):
@@ -185,6 +187,85 @@ class HistoryMatching:
         return (ppe_para.max() - ppe_para.min()) * sampled_para + ppe_para.min()
     
 
+    def orchestrate(self, n_pts = 10000, n_threshold = 100, sample_threshold = 10**5, max_workers = 31):
+
+
+        para_seq = list(self.grouped_hulls.keys())
+        
+        check = orchestrate_test(para_seq, self.p_emu, self.tf_masks,  
+                         self.para_nm, self.grouped_hulls, self.paras_vars, n_pts, n_threshold, sample_threshold, max_workers)
+
+        self.results.valid_hulls = check[0]
+        self.results.para_l = check[1]
+        self.dropped_vars.during_iteration = check[3]
+        self.specifications.dropped_during_orchastrate = check[3]
+
+    def draw(self, n_pts=50000, n_threshold=5000, sample_threshold=10**8, max_workers=32, n_max = 1000):
+        valid_hulls = self.results.valid_hulls
+        samples = sample_from_hulls_n(list(valid_hulls.keys()), self.para_nm, valid_hulls, n_pts, n_threshold, max_workers, sample_threshold)
+        if samples.shape[0]>n_max:
+            samples = samples.iloc[:n_max]
+            
+        self.results.unscaled_samples = samples
+        self.results.realscale_samples = self.rescale_para(samples)
+
+
+
+    def save_samples(self, n = 100):
+        csv_path1 = self.root / 'full_sel_para_realscale.csv'
+        nc_path1 = self.root / 'full_sel_para_realscale.nc'
+
+        csv_path2 = self.root / 'sel_para_realscale.csv'
+        nc_path2 = self.root / 'sel_para_realscale.nc'
+
+
+        
+        self.results.realscale_samples.to_csv(csv_path1)
+        para_csv2nc(csv_path1, nc_path1, self.results.realscale_samples.shape[0])
+
+        self.results.realscale_samples.iloc[:n,:].to_csv(csv_path2)
+        para_csv2nc(csv_path2, nc_path2, n)
+        
     
 
-    
+    def write_specifications(self):
+        def _key_to_str(key):
+            if isinstance(key, tuple):
+                return "(" + ", ".join(str(k) for k in key) + ")"
+            return str(key)
+
+        def _to_jsonable(value):
+            if isinstance(value, dict):
+                return {_key_to_str(k): _to_jsonable(v) for k, v in value.items()}
+            if isinstance(value, (list, tuple, set)):
+                return [_to_jsonable(v) for v in value]
+            if hasattr(value, "item"):
+                # Handles numpy scalar types (e.g., np.int64, np.float64).
+                try:
+                    return value.item()
+                except Exception:
+                    pass
+            return value
+
+        spec_dict = {
+            "emulator_threshold": getattr(self.specifications, "emulator_threshold", None),
+            "n_survive": getattr(self.specifications, "n_survive", None),
+            "n_var_thre_per_parapair": getattr(self.specifications, "n_var_thre_per_parapair", None),
+            "overlapping_threshold": getattr(self.specifications, "overlapping_threshold", None),
+            "drop_by_name": getattr(self.specifications, "drop_by_name", None),
+            "drop_vars_2d": getattr(self.specifications, "drop_vars_2d", None),
+            "dropped_during_orchastrate": getattr(self.specifications, "dropped_during_orchastrate", None),
+            'para_var' : self.paras_vars,
+        }
+        spec_dict = _to_jsonable(spec_dict)
+
+        # Python-friendly + human-friendly canonical output
+        json_path = self.root / "specifications.json"
+        with open(json_path, "w", encoding="utf-8") as f:
+            json.dump(spec_dict, f, indent=2, sort_keys=True, ensure_ascii=False)
+
+        dropped_vars_dict = _to_jsonable(vars(self.dropped_vars))
+        dropped_vars_path = self.root / "dropped_vars.json"
+        with open(dropped_vars_path, "w", encoding="utf-8") as f:
+            json.dump(dropped_vars_dict, f, indent=2, sort_keys=True, ensure_ascii=False)
+
