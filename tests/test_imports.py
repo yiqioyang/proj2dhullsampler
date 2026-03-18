@@ -8,5 +8,6 @@ def test_helper_imports():
         gp_training_application,
         metric_cal_single,
         orchestrate_test,
+        plot_histograms_grid_5,
         sample_from_hulls_n,
     )
