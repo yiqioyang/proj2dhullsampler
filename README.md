@@ -1,6 +1,6 @@
-# spatialtuning
+# proj2dhullsampler
 
-`spatialtuning` is a Python repository for parameter-space screening and history matching of spatial climate diagnostics. It packages utilities for:
+`proj2dhullsampler` is a Python repository for parameter-space screening and history matching of spatial climate diagnostics. It packages utilities for:
 
 - preparing observational and PPE-derived feature tables
 - training and applying Gaussian process emulators
@@ -9,12 +9,10 @@
 - constructing alpha-shape hulls in normalized parameter space
 - drawing new candidate parameter sets from the surviving region
 
-The installable Python package is named `proj2dhullsampler`.
-
 ## Repository Layout
 
 ```text
-spatialtuning/
+proj2dhullsampler/
 ├── proj2dhullsampler/
 │   ├── prep_class.py
 │   ├── analysis.py
@@ -194,6 +192,5 @@ pytest
 
 ## Notes
 
-- The repository name is `spatialtuning`, while the Python package name is `proj2dhullsampler`.
 - The notebooks in [`notebooks/`](/glade/u/home/qingyuany/repos/spatialtuning/notebooks) appear to document the intended workflow and are the best place to see project-specific usage patterns.
 - Most geometry operations assume parameters have been normalized to the `[0, 1]` range before hull construction and sampling.
