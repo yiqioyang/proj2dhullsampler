@@ -1,11 +1,8 @@
 import xarray as xr
 import pandas as pd
 import glob
-import os
-import math
 
 import numpy as np
-import re
 from joblib import Parallel, delayed
 from pathlib import Path
 import matplotlib.pyplot as plt
@@ -179,8 +176,6 @@ class FeatureBuilder:
                 ppe_pd = pd.concat([ppe_zonal_pd, ppe_manual_pd], axis = 1)
                 obs_pd = pd.concat([obs_zonal_pd, obs_manual_pd])
                 
-            #ppe_pd.to_csv(os.path.join(self.path, "tabs/", "ppe_tab.csv"), index = True)
-            #obs_pd.to_csv(os.path.join(self.path, "tabs/", "obs_tab.csv"), index=True)
     
             ppe_pd.to_csv(self.case.tabs / "ppe_tab.csv", index=True)
             obs_pd.to_csv(self.case.tabs / "obs_tab.csv", index=True)
@@ -266,7 +261,7 @@ class Prep_Mask_Generation:
         return xr.open_dataset(self.case.root / "sampled_parameters.nc").to_dataframe()
     
     def sensitivity_emulation(self, n_sens_p = 2, n_cpus = 15):
-        from funs.utils import gp_training_application, fit_gp_for_single_1d, fit_all_gp_models_1d
+        from .utils import gp_training_application, fit_gp_for_single_1d, fit_all_gp_models_1d
         
         para_s = xr.open_dataset(self.case.root / "sampled_parameters.nc").to_dataframe()
         
@@ -292,11 +287,7 @@ class Prep_Mask_Generation:
 
         for path in mean_paths:
             var_name_file = path.split("/")[-1].split("_mean_std_")[1]
-            if "zonal" in var_name_file:
-                cli_temp = var_name_file.split("_zonal")[0]
-                
-            else:
-                cli_temp = var_name_file.split("_")[0]  #% xxx
+
                     
             var_name = var_name_file.split(".")[0]
             
