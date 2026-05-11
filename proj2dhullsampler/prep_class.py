@@ -77,7 +77,7 @@ class DataPrep:
 
 
 class FeatureBuilder:
-    def __init__(self, ppe, obs, obs_dict, added_data, case: CaseDirectory):
+    def __init__(self, ppe, obs, obs_dict, xy_tabs, , added_data, case: CaseDirectory):
         self.ppe = ppe
         self.obs = obs
         self.obs_dict = obs_dict

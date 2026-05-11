@@ -79,4 +79,15 @@ def local_process(ppe, obs, obs_dict, manul_ppe_info):
 
 
 
+def feature_builder(tabs, ppe, obs, obs_dict, lat_bins, manul_ppe_info):
+    if ppe is None:
+        ppe_tab, obs_tab = tabs
+        return ppe_tab, obs_tab
+    
+    else:
+        ppe_zonal, obs_zonal = zonal_process(ppe, obs, obs_dict, lat_bins)
 
+        if manul_ppe_info is not None:
+            ppe_manual, obs_manual = local_process(ppe, obs, obs_dict, manul_ppe_info)
+
+            
