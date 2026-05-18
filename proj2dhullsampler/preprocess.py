@@ -43,7 +43,7 @@ def zonal_process(ppe, obs, obs_dict, lat_bins):
     if sorted(nan_obs_vars) == sorted(nan_ppe_vars):
         print("Check on nan variables passes: nan variables matching between obs and simulation")
     else:
-        print("Check on nan variables passes")
+        print("Check on nan variables FAILED: nan variables do not match between obs and simulation")
 
     print(f'obs_shape: {obs_zonal_pd.shape}, and ppe shape: {ppe_zonal_pd.shape}')
 
