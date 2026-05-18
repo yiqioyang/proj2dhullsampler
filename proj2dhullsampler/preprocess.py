@@ -1,4 +1,5 @@
 import numpy as np
+import pandas as pd
 import xarray as xr
 
 def zonal_process(ppe, obs, obs_dict, lat_bins):
@@ -67,6 +68,7 @@ def local_process(ppe, obs, obs_dict, manul_ppe_info):
             print("There are NaN values in the selected area for the obs")        
 
 
+    manual_name_list = ["local_" + name for name in manual_name_list]
     ppe_manual_pd = pd.concat(ppe_manual_list,axis = 1)
     obs_manual_pd = pd.Series(obs_manual_list)
 
@@ -82,12 +84,61 @@ def local_process(ppe, obs, obs_dict, manul_ppe_info):
 def feature_builder(tabs, ppe, obs, obs_dict, lat_bins, manul_ppe_info):
     if ppe is None:
         ppe_tab, obs_tab = tabs
-        return ppe_tab, obs_tab
-    
+        if obs_tab.index.equals(ppe_tab.columns):
+            print("obs and ppe variable names match")
+            return ppe_tab, obs_tab
+        else:
+            print("obs and ppe variable names do not match")
+            return 
+
     else:
-        ppe_zonal, obs_zonal = zonal_process(ppe, obs, obs_dict, lat_bins)
+        if manul_ppe_info is not None and lat_bins is not None:
+            ppe_manual_pd, obs_manual_pd = local_process(ppe, obs, obs_dict, manul_ppe_info)
+            ppe_zonal_pd, obs_zonal_pd = zonal_process(ppe, obs, obs_dict, lat_bins)
+                        
+            if ppe_manual_pd.index.equals(ppe_zonal_pd.index):
+                print("Manual and zonal indices match")
 
-        if manul_ppe_info is not None:
-            ppe_manual, obs_manual = local_process(ppe, obs, obs_dict, manul_ppe_info)
-
+            else:
+                print("Manual and zonal indices NOT match")
+                return
             
+            ppe_zonal_manual = pd.concat([ppe_zonal_pd, ppe_manual_pd], axis = 1)
+            obs_zonal_manual = pd.concat([obs_zonal_pd, obs_manual_pd])
+            
+            
+        if manul_ppe_info is None and lat_bins is not None:
+            ppe_zonal_manual, obs_zonal_manual = zonal_process(ppe, obs, obs_dict, lat_bins)
+            
+        if manul_ppe_info is not None and lat_bins is None:
+            ppe_zonal_manual, obs_zonal_manual = local_process(ppe, obs, obs_dict, manul_ppe_info)
+
+        
+        if tabs is None:
+            if obs_zonal_manual.index.equals(ppe_zonal_manual.columns):
+                print("obs and ppe variable names match")
+                return ppe_zonal_manual, obs_zonal_manual
+            else:
+                print("obs and ppe variable names do not match")
+                return 
+        else:
+            ppe_tab, obs_tab = tabs
+            if ppe_tab.index.equals(ppe_zonal_manual.index):
+                print("Tabulated and processed data indices match")
+
+                ppe_combine = pd.concat([ppe_tab, ppe_zonal_manual], axis = 1)
+                obs_combine = pd.concat([obs_tab, obs_zonal_manual])
+
+                if obs_combine.index.equals(ppe_combine.columns):
+                    print("obs and ppe variable names match")
+                    return ppe_combine, obs_combine
+                else:
+                    print("obs and ppe variable names do not match")
+                    return 
+
+            else:
+                print("Tabulated and processed data indices do not match")
+                return
+
+
+
