@@ -9,7 +9,9 @@ from importlib import import_module
 _EXPORTS = {
     "Analysis": (".analysis", "Analysis"),
     "HistoryMatching": (".hm_class", "HistoryMatching"),
-    "Prep_Mask_Generation": (".prep_class", "Prep_Mask_Generation"),
+    "Prepare_Case": (".prep_class", "Prepare_Case"),
+    "meta_one_hot_shot": (".prep_class", "meta_one_hot_shot"),
+    "feature_builder": (".preprocess", "feature_builder"),
     "biplot": (".plotting", "biplot"),
     "biplot_original_scale": (".plotting", "biplot_original_scale"),
     "gp_training_application": (".utils", "gp_training_application"),
@@ -18,8 +20,8 @@ _EXPORTS = {
     "para_csv2nc": (".aux", "para_csv2nc"),
     "plot_histograms_grid_5": (".plotting", "plot_histograms_grid_5"),
     "sample_from_hull": (".sampling_functions", "sample_from_hull"),
-    "sample_from_hulls_n": (".sampling_functions", "sample_from_hulls_n"),
-}
+    "sample_from_hulls_n": (".sampling_functions", "sample_from_hulls_n")
+    }
 
 __all__ = list(_EXPORTS)
 

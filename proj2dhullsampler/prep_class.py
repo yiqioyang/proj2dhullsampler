@@ -103,7 +103,7 @@ def meta_one_hot_shot(meta, para_nm):
     return meta_one_hot
 
 
-class Prep_Mask_Generation:
+class Prepare_Case:
     def __init__(self, working_dir, case_name, para, tabs, ppe, obs, obs_dict, lat_bins, manul_ppe_info, n_sample = 1000000):
         
 
@@ -138,7 +138,7 @@ class Prep_Mask_Generation:
 
     def sample_uniform(self, n):
         samples = pd.DataFrame(np.random.rand(n, len(self.data_gcm.para_nm)),
-                                columns=self.para_nm
+                                columns=self.data_gcm.para_nm
                                 )
         xr.Dataset.from_dataframe(samples).to_netcdf(self.case.root / "sampled_parameters.nc")
 
@@ -194,9 +194,9 @@ class Prep_Mask_Generation:
         self.threshold_level = threshold_level
         
 ### xxxx
-### 2. Check path correctness
-    def load_mask(self, threshold):
-        return(pd.read_csv(self.case.root / f"tf_masks_level_{threshold_level}.csv"))
+### Add function to update parameters such that they match
+    def load_mask(self, threshold_level):
+        return(pd.read_csv(self.case.root / f"tf_masks_level_{threshold_level}.csv", index_col = 0))
 
     def load_certainy(self, yname):
         return(pd.read_csv(self.case.root / f"y_emu/gp_mean_std_{yname}.csv", index_col=0))
@@ -207,7 +207,7 @@ class Prep_Mask_Generation:
     def visualize_check(self, yname, threshold):
         y_emu_norm = self.load_certainy(yname)
         X_emu = self.load_para_emu()
-        tf_masks = self.load_mask(yname)
+        tf_masks = self.load_mask(threshold)[yname]
 
         visualize_emulation(X_gcm_norm = self.data_gcm.para_norm, X_emu = X_emu, y_gcm = self.data_gcm.ppe_data[yname], y_emu_norm = y_emu_norm, 
                             para_inds = self.meta[yname], tf_mask = tf_masks, 
