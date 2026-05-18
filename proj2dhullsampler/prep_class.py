@@ -7,6 +7,8 @@ from joblib import Parallel, delayed
 from pathlib import Path
 import matplotlib.pyplot as plt
 
+from .preprocess import feature_builder
+from .utils import gp_training_application
 
 class EmulatedDataStorage:
     """
@@ -31,162 +33,27 @@ class CaseDirectory:
         (self.root / "class_obj").mkdir(exist_ok=True)
 
     @property
-    def y_emu(self):
+    def path_y_emu(self):
         return self.root / "y_emu"
 
     @property
-    def tabs(self):
+    def path_tabs(self):
         return self.root / "tabs"
 
     @property
-    def python_obj(self):
+    def path_python_obj(self):
         return self.root / "python_obj"
 
     @property
-    def class_obj(self):
+    def path_class_obj(self):
         return self.root / "class_obj"
 
 
-class DataPrep:
-    def __init__(self, ppe, obs, obs_dict, para, case: CaseDirectory):
-        self.ppe = ppe
-        self.obs = obs
-        self.obs_dict = obs_dict
-        self.para = para
-        self.para_nm = list(para.columns)
-        para_norm = para.copy()
-        para_norm = (para_norm - para_norm.min())/(para_norm.max() - para_norm.min())
-        self.para_norm = para_norm
-        self.case = case
-        if ppe is None:
-            print('No PPE input')
-        else:
-            if np.array_equal(ppe.ppe_ind.to_numpy(), para.index.to_numpy()):
-                print("Parameter and simulation indices match")
-            else:
-                print("Indices not matching!")
-
-    def sample_uniform(self, n = 1000000):
-        samples = pd.DataFrame(
-            np.random.rand(n, len(self.para_nm)),
-            columns=self.para_nm
-        )
-        xr.Dataset.from_dataframe(samples).to_netcdf(self.case.root / "sampled_parameters.nc")
 
 
 
 
-class FeatureBuilder:
-    def __init__(self, ppe, obs, obs_dict, xy_tabs, , added_data, case: CaseDirectory):
-        self.ppe = ppe
-        self.obs = obs
-        self.obs_dict = obs_dict
-        self.case = case  
-        self.added_data = added_data
-        
-    def zonalize_obs_ppe(self, lat_bins, manul_ppe_info):
-
-        
-        if self.ppe is None:
-            self.added_data[0].to_csv(self.case.tabs / "ppe_tab.csv", index=True)
-            self.added_data[1].to_csv(self.case.tabs / "obs_tab.csv", index=True)
-    
-            self.ppe_pd = self.added_data[0]
-            self.obs_pd = self.added_data[1]
-            self.var_nm = list(self.ppe_pd.columns)
-
-        else:
-            ppe_zonal_list = []
-            obs_zonal_list = []
-    
-            
-            lab_bin_labels = np.char.add(np.char.add(lat_bins[:-1].astype(str), "to"), lat_bins[1:].astype(str))
-            lab_bin_labels = np.char.add("zonal_", lab_bin_labels)
-            ############################################################################################################
-            for cam_nm, obs_nm in self.obs_dict.items():
-            
-                ppe_da = self.ppe[cam_nm]
-                filter_tf = self.obs[obs_nm].notnull()           ## ## Take out the na values that are in obs from the PPE 
-                ppe_da = ppe_da.where(filter_tf)
-    
-    
-                
-                zonal_ppe_temp = (ppe_da.mean(dim  = "lon", 
-                                              skipna = True).groupby_bins("lat",lat_bins, labels = lab_bin_labels).mean(dim = "lat", skipna = True).to_dataframe().unstack(level = 1))
-                
-                zonal_ppe_temp.columns.name = None # At this point, zonal_ppe_temp has two level in the columns
-                zonal_ppe_temp.columns = ["_".join(col) for col in list(zonal_ppe_temp.columns)] # The comprehension unpack the two levels
-                
-            
-                zonal_obs_temp = self.obs[obs_nm].mean(dim = "lon", skipna = True).groupby_bins("lat",lat_bins, labels = lab_bin_labels).mean(dim = "lat", skipna = True).to_series()
-                zonal_obs_temp.index = zonal_ppe_temp.columns
-            
-                ppe_zonal_list.append(zonal_ppe_temp)
-                obs_zonal_list.append(zonal_obs_temp)
-            
-            ppe_zonal_pd = pd.concat(ppe_zonal_list, axis = 1)
-            obs_zonal_pd = pd.concat(obs_zonal_list)
-    
-            nan_obs_vars = list(obs_zonal_pd.index[obs_zonal_pd.isna()])
-            obs_zonal_pd = obs_zonal_pd.dropna()
-            
-            nan_ppe_vars = list(ppe_zonal_pd.columns[ppe_zonal_pd.isna().any()])
-            ppe_zonal_pd = ppe_zonal_pd.dropna(axis = 1)
-    
-            if sorted(nan_obs_vars) == sorted(nan_ppe_vars):
-                print("nan variables matching between obs and simulation")
-            else:
-                print("non variables not matching between obs and simulation")
-            ############################################################################################################
-            
-            ppe_manual_list = []
-            obs_manual_list = []
-            manual_name_list = []
-        
-            for row_ind, row in manul_ppe_info.iterrows():
-                
-                temp_obs = self.obs[self.obs_dict[row.nm]].sel(lat = slice(row.lat_min, row.lat_max), lon = slice(row.lon_min, row.lon_max)).mean(dim = ["lat", "lon"]).values
-                if ~np.isnan(temp_obs):
-                    temp_ppe = self.ppe[row.nm].sel(lat = slice(row.lat_min, row.lat_max), lon = slice(row.lon_min, row.lon_max)).mean(dim = ["lat", "lon"]).to_dataframe()
-                    
-                    manual_name_list.append("_".join(row.astype(str)))
-                    ppe_manual_list.append(temp_ppe)
-                    obs_manual_list.append(temp_obs)
-                else:
-                    print("??")        
-        
-        
-            ppe_manual_pd = pd.concat(ppe_manual_list,axis = 1)
-            obs_manual_pd = pd.Series(obs_manual_list)
-        
-            ppe_manual_pd.columns = manual_name_list
-            obs_manual_pd.index = manual_name_list
-            ############################################################################################################
-            if self.added_data is not None:
-                if np.array_equal(self.added_data[0].index.to_numpy(), ppe_zonal_pd.index.to_numpy()):
-                    print("Added data index matching")
-                    ppe_pd = pd.concat([ppe_zonal_pd, ppe_manual_pd, self.added_data[0]], axis = 1)
-                    obs_pd = pd.concat([obs_zonal_pd, obs_manual_pd, self.added_data[1]])
-    
-                else:
-                    print('Added data index not matching, break')
-                    return 
-                    
-            else:
-                ppe_pd = pd.concat([ppe_zonal_pd, ppe_manual_pd], axis = 1)
-                obs_pd = pd.concat([obs_zonal_pd, obs_manual_pd])
-                
-    
-            ppe_pd.to_csv(self.case.tabs / "ppe_tab.csv", index=True)
-            obs_pd.to_csv(self.case.tabs / "obs_tab.csv", index=True)
-    
-            print("Zonalized and manually selected obs and ppe written as csv")
-            self.ppe_pd = ppe_pd
-            self.obs_pd = obs_pd
-            self.var_nm = list(ppe_pd.columns)
-
-
-def visualize_emulation(X_gcm_norm, X_emu, y_gcm, y_emu_norm, para_inds, tf_mask, para_nm, obs, yname):
+def visualize_emulation(X_gcm_norm, X_emu, y_gcm, y_emu_norm, para_inds, tf_mask, para_nm, obs):
 
     y_emu_norm.iloc[:,0] = y_emu_norm.iloc[:,0] * y_gcm.std() + y_gcm.mean()
     y_emu_norm.iloc[:,1] = y_emu_norm.iloc[:,1] * y_gcm.std()
@@ -237,41 +104,55 @@ def meta_one_hot_shot(meta, para_nm):
 
 
 class Prep_Mask_Generation:
-    def __init__(self, working_dir, case_name, ppe, obs, obs_dict, para, lat_bins, manul_ppe_info, added_ppe_obs = None, n_sample = 1000000):
+    def __init__(self, working_dir, case_name, para, tabs, ppe, obs, obs_dict, lat_bins, manul_ppe_info, n_sample = 1000000):
         
+
+        self.wd = working_dir
+        self.case_name = case_name
         self.case = CaseDirectory(working_dir, case_name)
-        self.data_gcm = DataPrep(ppe, obs, obs_dict, para, self.case)
-        self.data_gcm.sample_uniform(n_sample)
-        
-        self.features = FeatureBuilder(ppe, obs, obs_dict, added_ppe_obs, self.case)
-        self.features.zonalize_obs_ppe(lat_bins, manul_ppe_info)
+        self.n_sample = n_sample
 
+        #### Process ppe data
+        ppe_data, obs_data = feature_builder(tabs, ppe, obs, obs_dict, lat_bins, manul_ppe_info)
         
-        self.data_gcm.ppe_pd = self.features.ppe_pd
-        self.data_gcm.obs_pd = self.features.obs_pd
-        self.data_gcm.var_nm = self.features.var_nm
-        
-        self.data_emu = EmulatedDataStorage()
-        self.var_excluded = EmulatedDataStorage()
-    
-    def load_certainy(self, yname):
-        return(pd.read_csv(self.case.root / f"y_emu/gp_mean_std_{yname}.csv", index_col=0))
+        if para.index.equals(ppe_data.index):
+            self.data_gcm = EmulatedDataStorage()
+            para_norm = para.copy()
+            para_norm = (para_norm - para_norm.min())/(para_norm.max() - para_norm.min())
+            self.data_gcm.para = para
+            self.data_gcm.para_norm = para_norm
+            self.data_gcm.ppe_data = ppe_data
+            self.data_gcm.obs_data = obs_data
+            self.data_gcm.var_nm = list(ppe_data.columns)
+            self.data_gcm.para_nm = list(para.columns)
+        else:
+            raise ValueError("Parameters and simulation output indices do not match")
 
-    def load_para_emu(self):
-        return xr.open_dataset(self.case.root / "sampled_parameters.nc").to_dataframe()
-    
+        para.to_csv(self.case.path_tabs / 'parameters.csv')
+        ppe_data.to_csv(self.case.path_tabs / 'ppe_data.csv')
+        obs_data.to_csv(self.case.path_tabs / 'obs_data.csv')
+        
+
+        ##### Sample parameters
+        self.sample_uniform(n_sample)
+
+    def sample_uniform(self, n):
+        samples = pd.DataFrame(np.random.rand(n, len(self.data_gcm.para_nm)),
+                                columns=self.para_nm
+                                )
+        xr.Dataset.from_dataframe(samples).to_netcdf(self.case.root / "sampled_parameters.nc")
+
+
     def sensitivity_emulation(self, n_sens_p = 2, n_cpus = 15):
-        from .utils import gp_training_application, fit_gp_for_single_1d, fit_all_gp_models_1d
         
-        para_s = xr.open_dataset(self.case.root / "sampled_parameters.nc").to_dataframe()
-        
+        sampled_paras = xr.open_dataset(self.case.root / "sampled_parameters.nc").to_dataframe()
         
         results = Parallel(n_jobs=n_cpus)(
-                        delayed(gp_training_application)(self.data_gcm.para_norm, self.data_gcm.ppe_pd, y_name, para_s, path = str(self.case.root) + "/", n_sens_p=n_sens_p)
-                        for y_name in list(self.data_gcm.ppe_pd.columns)
+                        delayed(gp_training_application)(self.data_gcm.para_norm, self.data_gcm.ppe_data, y_name, sampled_paras, path = str(self.case.root) + "/", n_sens_p=n_sens_p)
+                        for y_name in list(self.data_gcm.ppe_data.columns)
                     )
 
-        del para_s
+        del sampled_paras
 
         meta_xy_dict = {pair[0]: pd.Series(pair[1]) for pair in results if pair is not None}
         meta = pd.concat(list(meta_xy_dict.values()), axis = 1)
@@ -295,8 +176,8 @@ class Prep_Mask_Generation:
             emulated_mean = emulated_mean_std.iloc[:,0]
             emulated_std = emulated_mean_std.iloc[:,1]            
             
-            obs_temp = self.data_gcm.obs_pd.loc[var_name]
-            y_ppe = self.data_gcm.ppe_pd[var_name]
+            obs_temp = self.data_gcm.obs_data.loc[var_name]
+            y_ppe = self.data_gcm.ppe_data[var_name]
         
             yscale = y_ppe.std()
             ymu = y_ppe.mean()            
@@ -311,16 +192,26 @@ class Prep_Mask_Generation:
         tf_masks = pd.concat(tf_masks, axis = 1)
         tf_masks.to_csv(self.case.root / f"tf_masks_level_{threshold_level}.csv")
         self.threshold_level = threshold_level
-        self.data_emu.tf_masks = tf_masks
-
-    def visualize_check(self, yname):
         
+### xxxx
+### 2. Check path correctness
+    def load_mask(self, threshold):
+        return(pd.read_csv(self.case.root / f"tf_masks_level_{threshold_level}.csv"))
+
+    def load_certainy(self, yname):
+        return(pd.read_csv(self.case.root / f"y_emu/gp_mean_std_{yname}.csv", index_col=0))
+
+    def load_para_emu(self):
+        return xr.open_dataset(self.case.root / "sampled_parameters.nc").to_dataframe()
+
+    def visualize_check(self, yname, threshold):
         y_emu_norm = self.load_certainy(yname)
         X_emu = self.load_para_emu()
-        
-        visualize_emulation(X_gcm_norm = self.data_gcm.para_norm, X_emu = X_emu, y_gcm = self.data_gcm.ppe_pd[yname], y_emu_norm = y_emu_norm, 
-                            para_inds = self.meta[yname], tf_mask = self.data_emu.tf_masks[yname], 
-                            para_nm = self.data_gcm.para_nm, obs = self.data_gcm.obs_pd[yname], yname = yname)
+        tf_masks = self.load_mask(yname)
+
+        visualize_emulation(X_gcm_norm = self.data_gcm.para_norm, X_emu = X_emu, y_gcm = self.data_gcm.ppe_data[yname], y_emu_norm = y_emu_norm, 
+                            para_inds = self.meta[yname], tf_mask = tf_masks, 
+                            para_nm = self.data_gcm.para_nm, obs = self.data_gcm.obs_data[yname])
 
 
 
