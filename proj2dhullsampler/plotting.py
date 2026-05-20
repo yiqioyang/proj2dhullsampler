@@ -139,3 +139,43 @@ def plot_histograms_grid_5(dfs, df_vline=None, bins=30, density=False):
 
 
 
+
+def visualize_emulation(X_gcm_norm, X_emu, y_gcm, y_emu_norm, para_inds, tf_mask, para_nm, obs):
+
+    y_emu_norm.iloc[:,0] = y_emu_norm.iloc[:,0] * y_gcm.std() + y_gcm.mean()
+    y_emu_norm.iloc[:,1] = y_emu_norm.iloc[:,1] * y_gcm.std()
+    
+    xy_emu = pd.concat([X_emu, y_emu_norm], axis = 1)
+    xy_emu_sub = xy_emu[tf_mask]
+
+    xy_emu = xy_emu.sample(50000)
+    if xy_emu_sub.shape[0] > 50000:
+        xy_emu_sub = xy_emu_sub.sample(50000)
+            
+
+
+    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(10, 4))  # 1 row, 2 columns
+    
+    xy_emu.sort_values(by = para_nm[para_inds[0]])
+    xy_emu_sub.sort_values(by =para_nm[para_inds[0]])
+
+    ax1.scatter(xy_emu.iloc[:, para_inds[0]], xy_emu.iloc[:, -2])
+    ax1.scatter(xy_emu_sub.iloc[:, para_inds[0]], xy_emu_sub.iloc[:, -2])
+    # ax1.plot(xy_emu.iloc[:, para_inds[0]], xy_emu.iloc[:, -2] - xy_emu.iloc[:, -1], color = 'gray')
+    # ax1.plot(xy_emu.iloc[:, para_inds[0]], xy_emu.iloc[:, -2] + xy_emu.iloc[:, -1], color = 'gray')
+    
+    ax1.scatter(X_gcm_norm.iloc[:,para_inds[0]], y_gcm)
+    ax1.axhline(obs)
+    ax1.set_xlabel(para_nm[para_inds[0]])
+#############################################################################
+    xy_emu.sort_values(by = para_nm[para_inds[1]])
+    xy_emu_sub.sort_values(by =para_nm[para_inds[1]])
+
+    ax2.scatter(xy_emu.iloc[:, para_inds[1]], xy_emu.iloc[:, -2])
+    ax2.scatter(xy_emu_sub.iloc[:, para_inds[1]], xy_emu_sub.iloc[:, -2])
+    
+    ax2.scatter(X_gcm_norm.iloc[:,para_inds[1]], y_gcm)
+    ax2.axhline(obs)
+    ax2.set_xlabel(para_nm[para_inds[1]])
+    plt.show()
+

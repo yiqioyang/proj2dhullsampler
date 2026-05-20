@@ -6,7 +6,6 @@ def zonal_process(ppe, obs, obs_dict, lat_bins):
     ppe_zonal_list = []
     obs_zonal_list = []
 
-
     lab_bin_labels = np.char.add(np.char.add(lat_bins[:-1].astype(str), "to"), lat_bins[1:].astype(str))
     lab_bin_labels = np.char.add("zonal_", lab_bin_labels)
     ############################################################################################################

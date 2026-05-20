@@ -4,11 +4,14 @@ from pathlib import Path
 import json
 import alphashape
 from itertools import combinations
+#from joblib import Parallel, delayed
 
 from .sampling_functions import orchestrate_test, sample_from_hulls_n
+from .plotting import visualize_emulation
 from .aux import para_csv2nc
 from .prep_class import Prepare_Case
 import glob
+
 
 def meta_one_hot_shot(meta, para_nm):
     meta = meta.transpose()
@@ -54,9 +57,12 @@ class HistoryMatching:
             self.ppe_para = pd.read_csv(self.root / 'tabs/parameters.csv', index_col = 0)
             self.data_obs = pd.read_csv(self.root / 'tabs/obs_data.csv', index_col = 0).iloc[:, 0] #%xx        
             self.data_ppe = pd.read_csv(self.root / 'tabs/ppe_data.csv', index_col = 0)
+            self.var_nm = list(self.data_ppe.columns) 
 
             self.dropped_vars = EmulatedDataStorage()
             
+            self.ppe_para_norm = self.ppe_para.copy()
+            self.ppe_para_norm = (self.ppe_para_norm - self.ppe_para_norm.min())/(self.ppe_para_norm.max() - self.ppe_para_norm.min())
 
             self.results = EmulatedDataStorage()
             self.specifications = EmulatedDataStorage()
@@ -64,6 +70,25 @@ class HistoryMatching:
             self.dropped_vars.nooverlap2d = []
         else:
             print("No case created")
+
+
+    # def sensitivity_emulation(self, n_sens_p = 2, n_cpus = 15):
+        
+    #     sampled_paras = xr.open_dataset(self.root / "sampled_parameters.nc").to_dataframe()
+        
+    #     results = Parallel(n_jobs=n_cpus)(
+    #                     delayed(gp_training_application)(self.ppe_para_norm, self.data_ppe, y_name, sampled_paras, path = str(self.root) + "/", n_sens_p=n_sens_p)
+    #                     for y_name in self.var_nm)
+    #                 )
+
+    #     del sampled_paras
+
+    #     meta_xy_dict = {pair[0]: pd.Series(pair[1]) for pair in results if pair is not None}
+    #     meta = pd.concat(list(meta_xy_dict.values()), axis = 1)
+    #     meta.columns = list(meta_xy_dict.keys())
+    #     self.meta = meta
+        
+    #     meta.to_csv(self.root / "meta.csv", index=True)
 
     def create_mask(self, threshold_level):
 ###########################
@@ -104,6 +129,13 @@ class HistoryMatching:
 
         self.var_nm = list(self.tf_masks.columns)
         self.n_sample = self.tf_masks.shape[0]
+
+    def visualize_check(self, yname):
+        y_emu_norm = pd.read_csv(self.root / f"y_emu/gp_mean_std_{yname}.csv", index_col=0)
+        visualize_emulation(X_gcm_norm = self.ppe_para_norm, X_emu = self.p_emu, y_gcm = self.data_ppe[yname], y_emu_norm = y_emu_norm, 
+                            para_inds = self.meta[yname], tf_mask = self.tf_masks[yname], 
+                            para_nm = self.para_nm, obs = self.data_obs[yname])
+
 
     def drop_by_name(self, var_to_exclude):
         var_to_drop = []
