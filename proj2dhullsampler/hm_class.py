@@ -7,7 +7,8 @@ from itertools import combinations
 
 from .sampling_functions import orchestrate_test, sample_from_hulls_n
 from .aux import para_csv2nc
-
+from .prep_class import Prepare_Case
+import glob
 
 def meta_one_hot_shot(meta, para_nm):
     meta = meta.transpose()
@@ -27,26 +28,83 @@ class EmulatedDataStorage:
         pass
 
 class HistoryMatching:
-    def __init__(self, working_dir, case_name, ppe_para, threshold_level = 2.0):
+    def __init__(self, working_dir, case_name):
+        self.working_dir = working_dir
+        self.case_name = case_name
         self.root = Path(working_dir) / case_name
-        self.tf_masks = pd.read_csv(self.root / f'tf_masks_level_{threshold_level}.csv', index_col=0)
-        
-        self.meta = pd.read_csv(self.root / 'meta.csv', index_col = 0)
-        self.p_emu = xr.open_dataset(self.root / 'sampled_parameters.nc').to_dataframe()
-        self.var_nm = list(self.tf_masks.columns)
-        self.para_nm = list(self.p_emu.columns)
-        self.ppe_para = ppe_para
-        self.tf_masks_raw = self.tf_masks
 
-        self.dropped_vars = EmulatedDataStorage()
+        
+
+    def create_case(self, para, tabs, ppe, obs, obs_dict, lat_bins, manul_ppe_info, n_sample):
+        if self.root.exists():
+            print("Directory already exists")
+            return 
+        else:
+            print("Start creating new case")
+            prep_case = Prepare_Case(self.working_dir, self.case_name, para, tabs, ppe, obs, obs_dict, lat_bins, manul_ppe_info, n_sample)
+            self.prep_case = prep_case
+            
+
+    def load_case(self):
+        if self.root.exists():    
+            self.meta = pd.read_csv(self.root / 'meta.csv', index_col = 0)
+            self.p_emu = xr.open_dataset(self.root / 'sampled_parameters.nc').to_dataframe()
+            
+            self.para_nm = list(self.p_emu.columns)
+            self.ppe_para = pd.read_csv(self.root / 'tabs/parameters.csv', index_col = 0)
+            self.data_obs = pd.read_csv(self.root / 'tabs/obs_data.csv', index_col = 0).iloc[:, 0] #%xx        
+            self.data_ppe = pd.read_csv(self.root / 'tabs/ppe_data.csv', index_col = 0)
+
+            self.dropped_vars = EmulatedDataStorage()
+            
+
+            self.results = EmulatedDataStorage()
+            self.specifications = EmulatedDataStorage()
+            
+            self.dropped_vars.nooverlap2d = []
+        else:
+            print("No case created")
+
+    def create_mask(self, threshold_level):
+###########################
+        mean_paths = glob.glob(str(self.root) + "/y_emu/" + "*mean*", recursive=True)
+        tf_masks = []
+
+        for path in mean_paths:
+            var_name_file = path.split("/")[-1].split("_mean_std_")[1]
+            var_name = var_name_file.split(".")[0]
+            emulated_mean_std = pd.read_csv(path,index_col=0)
+            emulated_mean = emulated_mean_std.iloc[:,0]
+            emulated_std = emulated_mean_std.iloc[:,1]            
+            
+            obs_temp = self.data_obs.loc[var_name]
+            y_ppe = self.data_ppe[var_name]
+        
+            yscale = y_ppe.std()
+            ymu = y_ppe.mean()            
+            emulated_mean = emulated_mean * yscale + ymu
+            emulated_std = emulated_std * yscale
+            
+            temp_tf_mask = ((emulated_mean - threshold_level * emulated_std) < obs_temp) & ((emulated_mean + threshold_level * emulated_std) > obs_temp)
+            temp_tf_mask.name = var_name
+            tf_masks.append(temp_tf_mask)
+
+
+        tf_masks = pd.concat(tf_masks, axis = 1)
+        tf_masks.to_csv(self.root / f"tf_masks_level_{threshold_level}.csv")
+        
+        
+
+##########################
+    def load_mask(self, threshold_level):
+        self.tf_masks = pd.read_csv(self.root / f'tf_masks_level_{threshold_level}.csv', index_col=0)
+        self.tf_masks_raw = self.tf_masks.copy()
+        self.specifications.uncertainty_threshold = threshold_level
+        
+
+        self.var_nm = list(self.tf_masks.columns)
         self.n_sample = self.tf_masks.shape[0]
 
-        self.results = EmulatedDataStorage()
-        self.specifications = EmulatedDataStorage()
-        self.specifications.emulator_threshold = threshold_level
-
-        self.dropped_vars.nooverlap2d = []
-        
     def drop_by_name(self, var_to_exclude):
         var_to_drop = []
         for v in var_to_exclude:
@@ -56,7 +114,7 @@ class HistoryMatching:
 
         self.var_nm = list(self.tf_masks.columns)
         self.dropped_vars.by_name = var_to_drop
-        self.specifications.drop_by_name = var_to_exclude
+        #xxx%self.specifications.drop_by_name = var_to_exclude
 
     def drop_by_n_survive(self, n_survive):
         survive_summary = self.tf_masks.sum(axis = 0)
@@ -78,7 +136,7 @@ class HistoryMatching:
         self.specifications.n_var_thre_per_parapair = n_var_thre
 
 
-    def update_meta(self, occurence_threshold = 2):
+    def update_meta(self):
         self.meta = self.meta[self.var_nm]
         self.meta_onehot = meta_one_hot_shot(self.meta, self.para_nm)
         
