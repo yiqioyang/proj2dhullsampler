@@ -1,13 +1,12 @@
 """Public API for the proj2dhullsampler package.
 
 Use this module for one-line imports in notebooks/scripts, e.g.:
-    from proj2dhullsampler import Analysis, HistoryMatching, Prep_Mask_Generation
+    from proj2dhullsampler import HistoryMatching
 """
 
 from importlib import import_module
 
 _EXPORTS = {
-    "Analysis": (".analysis", "Analysis"),
     "HistoryMatching": (".hm_class", "HistoryMatching"),
     "Prepare_Case": (".prep_class", "Prepare_Case"),
     "meta_one_hot_shot": (".prep_class", "meta_one_hot_shot"),

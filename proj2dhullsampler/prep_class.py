@@ -204,14 +204,14 @@ class Prepare_Case:
     def load_para_emu(self):
         return xr.open_dataset(self.case.root / "sampled_parameters.nc").to_dataframe()
 
-    def visualize_check(self, yname, threshold):
-        y_emu_norm = self.load_certainy(yname)
-        X_emu = self.load_para_emu()
-        tf_masks = self.load_mask(threshold)[yname]
+    # def visualize_check(self, yname, threshold):
+    #     y_emu_norm = pd.read_csv(self.case.root / f"y_emu/gp_mean_std_{yname}.csv", index_col=0)
+    #     X_emu = self.load_para_emu()
+    #     tf_masks = self.load_mask(threshold)[yname]
 
-        visualize_emulation(X_gcm_norm = self.data_gcm.para_norm, X_emu = X_emu, y_gcm = self.data_gcm.ppe_data[yname], y_emu_norm = y_emu_norm, 
-                            para_inds = self.meta[yname], tf_mask = tf_masks, 
-                            para_nm = self.data_gcm.para_nm, obs = self.data_gcm.obs_data[yname])
+    #     visualize_emulation(X_gcm_norm = self.data_gcm.para_norm, X_emu = X_emu, y_gcm = self.data_gcm.ppe_data[yname], y_emu_norm = y_emu_norm, 
+    #                         para_inds = self.meta[yname], tf_mask = tf_masks, 
+    #                         para_nm = self.data_gcm.para_nm, obs = self.data_gcm.obs_data[yname])
 
 
 

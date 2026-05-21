@@ -188,6 +188,7 @@ class HistoryMatching:
 
         self.hull_per_var = hull_per_var
 
+
     def group_para_climatology(self, overlapping_threshold = 10000):
 
         vars = self.var_nm
@@ -338,7 +339,7 @@ class HistoryMatching:
             return value
 
         spec_dict = {
-            "emulator_threshold": getattr(self.specifications, "emulator_threshold", None),
+            "uncertainty_threshold": getattr(self.specifications, "uncertainty_threshold", None),
             "n_survive": getattr(self.specifications, "n_survive", None),
             "n_var_thre_per_parapair": getattr(self.specifications, "n_var_thre_per_parapair", None),
             "overlapping_threshold": getattr(self.specifications, "overlapping_threshold", None),
