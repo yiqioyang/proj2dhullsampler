@@ -15,7 +15,6 @@ def zonal_process(ppe, obs, obs_dict, lat_bins):
         filter_tf = obs[obs_nm].notnull()           ## ## Take out the na values that are in obs from the PPE 
         ppe_da = ppe_da.where(filter_tf)
 
-
         
         zonal_ppe_temp = (ppe_da.mean(dim  = "lon", 
                                         skipna = True).groupby_bins("lat",lat_bins, labels = lab_bin_labels).mean(dim = "lat", skipna = True).to_dataframe().unstack(level = 1))
@@ -80,7 +79,7 @@ def local_process(ppe, obs, obs_dict, manul_ppe_info):
 
 
 
-def feature_builder(tabs, ppe, obs, obs_dict, lat_bins, manul_ppe_info):
+def feature_builder(tabs, ppe = None, obs = None, obs_dict = None, lat_bins = None, manul_ppe_info = None):
     if ppe is None:
         ppe_tab, obs_tab = tabs
         if obs_tab.index.equals(ppe_tab.columns):

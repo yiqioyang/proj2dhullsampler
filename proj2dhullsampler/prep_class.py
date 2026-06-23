@@ -50,9 +50,6 @@ class CaseDirectory:
 
 
 
-
-
-
 def visualize_emulation(X_gcm_norm, X_emu, y_gcm, y_emu_norm, para_inds, tf_mask, para_nm, obs):
 
     y_emu_norm.iloc[:,0] = y_emu_norm.iloc[:,0] * y_gcm.std() + y_gcm.mean()
@@ -106,7 +103,6 @@ def meta_one_hot_shot(meta, para_nm):
 class Prepare_Case:
     def __init__(self, working_dir, case_name, para, tabs, ppe, obs, obs_dict, lat_bins, manul_ppe_info, n_sample = 1000000):
         
-
         self.wd = working_dir
         self.case_name = case_name
         self.case = CaseDirectory(working_dir, case_name)
@@ -161,6 +157,7 @@ class Prepare_Case:
         
         meta.to_csv(self.case.root / "meta.csv", index=True)
         
+        # mark
     
     def mask_generation(self, threshold_level = 2.0):
         mean_paths = glob.glob(str(self.case.root) + "/y_emu/" + "*mean*", recursive=True)
@@ -193,7 +190,7 @@ class Prepare_Case:
         tf_masks.to_csv(self.case.root / f"tf_masks_level_{threshold_level}.csv")
         self.threshold_level = threshold_level
         
-### xxxx
+
 ### Add function to update parameters such that they match
     def load_mask(self, threshold_level):
         return(pd.read_csv(self.case.root / f"tf_masks_level_{threshold_level}.csv", index_col = 0))
