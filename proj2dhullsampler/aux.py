@@ -28,7 +28,7 @@ def para_csv2nc(path_to_csv, output_path, sample_n):
 
     for k in range(samp):
         number_sample.append("{0:03}".format(k+1))
-    print(number_sample)
+    print(f'The number of samples is {number_sample}')
     
     design1 = np.empty((samp,nmb_var))
     
@@ -43,8 +43,6 @@ def para_csv2nc(path_to_csv, output_path, sample_n):
     
 
     
-    print(type(design1))
-    print(type(name_arr))
     ds=xr.Dataset({name_arr[0]:(["nmb_sim"], design1[:,0])})
     #ds=ds.assign_coords({"sample_nmb": number_sample}) 
        
