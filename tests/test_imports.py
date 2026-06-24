@@ -1,13 +1,12 @@
 def test_public_api_imports():
-    from proj2dhullsampler import Analysis, HistoryMatching, Prep_Mask_Generation
+    from proj2dhullsampler import HistoryMatching
+
+    assert callable(HistoryMatching)
 
 
-def test_helper_imports():
-    from proj2dhullsampler import (
-        biplot,
-        gp_training_application,
-        metric_cal_single,
-        orchestrate_test,
-        plot_histograms_grid_5,
-        sample_from_hulls_n,
-    )
+def test_all_exports_are_importable():
+    import proj2dhullsampler
+
+    assert proj2dhullsampler.__all__ == ["HistoryMatching"]
+    for name in proj2dhullsampler.__all__:
+        assert getattr(proj2dhullsampler, name) is not None

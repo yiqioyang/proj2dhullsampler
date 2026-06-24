@@ -1,6 +1,7 @@
 # proj2dhullsampler
 
-`proj2dhullsampler` is a Python repository for parameter-space screening and history matching of spatial climate diagnostics. It packages utilities for:
+`proj2dhullsampler` is a Python package for parameter-space screening and
+history matching of spatial climate diagnostics. It includes utilities for:
 
 - preparing observational and PPE-derived feature tables
 - training and applying Gaussian process emulators
@@ -15,13 +16,15 @@
 proj2dhullsampler/
 ├── proj2dhullsampler/
 │   ├── prep_class.py
-│   ├── analysis.py
 │   ├── hm_class.py
 │   ├── sampling_functions.py
+│   ├── preprocess.py
 │   ├── plotting.py
 │   ├── aux.py
 │   └── utils.py
 ├── notebooks/
+│   ├── prepare.ipynb
+│   └── implementation.ipynb
 ├── tests/
 ├── pyproject.toml
 └── README.md
@@ -33,35 +36,42 @@ The code is structured around three stages.
 
 ### 1. Prepare a case directory
 
-`Prep_Mask_Generation` creates a case folder, writes uniformly sampled normalized parameters, and builds tabular PPE and observation features.
+`Prepare_Case` creates a case folder, writes uniformly sampled normalized
+parameters, and builds tabular PPE and observation features.
+
+`Prep_Mask_Generation` is kept as a public import alias for older notebooks and
+scripts. It points to the same implementation as `Prepare_Case`.
 
 Expected inputs are typically:
 
+- `para`: parameter table as a `pandas.DataFrame`
+- `tabs`: optional tuple of already-tabulated `(ppe_tab, obs_tab)` data
 - `ppe`: PPE outputs as an `xarray.Dataset`
 - `obs`: observations as an `xarray.Dataset`
 - `obs_dict`: mapping from model variable names to observation variable names
-- `para`: parameter table as a `pandas.DataFrame`
 - `lat_bins`: latitude bins for zonal aggregation
 - `manul_ppe_info`: table describing manually selected regional averages
-- `added_ppe_obs`: optional additional PPE/obs tabular features
 
 Example:
 
 ```python
-from proj2dhullsampler import Prep_Mask_Generation
+from proj2dhullsampler import Prepare_Case
 
-prep = Prep_Mask_Generation(
+prep = Prepare_Case(
     working_dir="/path/to/work",
     case_name="case_a",
+    para=parameter_table,
+    tabs=None,
     ppe=ppe_ds,
     obs=obs_ds,
     obs_dict=obs_dict,
-    para=parameter_table,
     lat_bins=lat_bins,
     manul_ppe_info=manual_regions,
-    added_ppe_obs=None,
     n_sample=1_000_000,
 )
+
+prep.sensitivity_emulation(n_sens_p=2, n_cpus=15)
+prep.mask_generation(threshold_level=2.0)
 ```
 
 This creates a case directory like:
@@ -69,47 +79,22 @@ This creates a case directory like:
 ```text
 case_a/
 ├── sampled_parameters.nc
+├── meta.csv
 ├── tabs/
-│   ├── ppe_tab.csv
-│   └── obs_tab.csv
+│   ├── parameters.csv
+│   ├── ppe_data.csv
+│   └── obs_data.csv
 ├── y_emu/
 ├── python_obj/
-└── class_obj/
+├── class_obj/
+└── output/
 ```
 
-### 2. Inspect emulator outputs
+### 2. Load masks and inspect emulator outputs
 
-`Analysis` loads saved masks, metadata, emulator inputs, and feature tables for diagnostics and plotting.
-
-Example:
-
-```python
-from proj2dhullsampler import Analysis
-
-analysis = Analysis(
-    working_dir="/path/to/work",
-    case_name="case_a",
-    ppe_para=parameter_table,
-    threshold_level=2.0,
-)
-
-analysis.plot_onehot()
-fig, axes = analysis.plot_by_para("clubb_c1")
-analysis.visualize_check("PRECT_zonal_-30to30")
-```
-
-Typical files expected in the case directory at this stage include:
-
-- `tf_masks_level_<threshold>.csv`
-- `meta.csv`
-- `sampled_parameters.nc`
-- `tabs/ppe_tab.csv`
-- `tabs/obs_tab.csv`
-- `y_emu/gp_mean_std_<variable>.csv`
-
-### 3. Run history matching and sample new parameters
-
-`HistoryMatching` groups diagnostics by parameter pair, builds alpha-shape hulls, checks overlap, and draws new samples from the feasible region.
+`HistoryMatching` loads saved masks, metadata, emulator inputs, and feature
+tables. `Analysis` is kept as a public import alias to `HistoryMatching` for
+older notebooks and scripts.
 
 Example:
 
@@ -119,35 +104,67 @@ from proj2dhullsampler import HistoryMatching
 hm = HistoryMatching(
     working_dir="/path/to/work",
     case_name="case_a",
-    ppe_para=parameter_table,
-    threshold_level=2.0,
 )
 
-hm.drop_by_n_survive(n_survive=50)
-hm.update_meta()
-hm.group_para_climatology(overlapping_threshold=10_000)
-hm.build_hulls(shape_alpha=5)
-hm.orchestrate(n_pts=10_000, n_threshold=100, max_workers=8)
-hm.draw(n_pts=50_000, n_threshold=5_000, max_workers=8, n_max=1000)
-hm.save_samples(n=100)
-hm.write_specifications()
+hm.load_case()
+hm.load_mask(threshold_level=2.0)
+hm.visualize_check("PRECT_zonal_-30to30")
 ```
 
-The final saved outputs are typically:
+Typical files expected in the case directory at this stage include:
 
-- `full_sel_para_realscale.csv`
-- `full_sel_para_realscale.nc`
-- `sel_para_realscale.csv`
-- `sel_para_realscale.nc`
-- a JSON specification file written by `write_specifications()`
+- `tf_masks_level_<threshold>.csv`
+- `meta.csv`
+- `sampled_parameters.nc`
+- `tabs/parameters.csv`
+- `tabs/ppe_data.csv`
+- `tabs/obs_data.csv`
+- `y_emu/gp_mean_std_<variable>.csv`
+
+### 3. Run history matching and sample new parameters
+
+`HistoryMatching` groups diagnostics by parameter pair, builds alpha-shape
+hulls, checks overlap, and draws new samples from the feasible region.
+
+Example:
+
+```python
+hm.drop_by_n_survive(n_survive=50)
+hm.group_para_climatology(overlapping_threshold=10_000)
+hm.prepare_for_sampling(
+    shape_alpha=5,
+    n_pts=10_000,
+    n_threshold=100,
+    sample_threshold=100_000,
+    max_workers=8,
+)
+hm.draw(
+    n_pts=50_000,
+    n_threshold=5_000,
+    sample_threshold=100_000_000,
+    max_workers=8,
+    n_max=1_000,
+)
+hm.save_samples_specifications(result_name="case_a", top_n=100)
+```
+
+The final saved outputs are written under `case_a/output/`, including:
+
+- `<result_name>_all_para_realscale.csv`
+- `<result_name>_all_para_realscale.nc`
+- `<result_name>_topn_para_realscale.csv`
+- `<result_name>_topn_para_realscale.nc`
+- `<result_name>_specifications.json`
+- `<result_name>_dropped_vars.json`
 
 ## Public API
 
 Main classes:
 
-- `Prep_Mask_Generation`: prepare case directories, sampled parameters, and feature tables
-- `Analysis`: inspect masks, metadata, and emulator behavior
+- `Prepare_Case`: prepare case directories, sampled parameters, emulators, and masks
 - `HistoryMatching`: filter diagnostics, build hulls, and generate candidate samples
+- `Prep_Mask_Generation`: compatibility alias for `Prepare_Case`
+- `Analysis`: compatibility alias for `HistoryMatching`
 
 Sampling and plotting helpers:
 
@@ -156,10 +173,10 @@ Sampling and plotting helpers:
 - `orchestrate_test`
 - `biplot`
 - `biplot_original_scale`
-- `plot_histograms_grid_5`
 
 Utility helpers:
 
+- `feature_builder`: build PPE and observation feature tables
 - `gp_training_application`: fit GP emulators and write mean/std predictions
 - `metric_cal_single`: compute weighted average/bias/RMSE style metrics
 - `para_csv2nc`: convert sampled parameter CSV files to NetCDF
@@ -192,5 +209,7 @@ pytest
 
 ## Notes
 
-- The notebooks in [`notebooks/`](/glade/u/home/qingyuany/repos/spatialtuning/notebooks) appear to document the intended workflow and are the best place to see project-specific usage patterns.
-- Most geometry operations assume parameters have been normalized to the `[0, 1]` range before hull construction and sampling.
+- The documented notebooks are `notebooks/prepare.ipynb` and
+  `notebooks/implementation.ipynb`.
+- Most geometry operations assume parameters have been normalized to the
+  `[0, 1]` range before hull construction and sampling.
