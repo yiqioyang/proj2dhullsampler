@@ -12,7 +12,6 @@ def para_csv2nc(path_to_csv, output_path, sample_n):
     df = pd.read_csv(path_to_csv, index_col=0)
     random_array = df.to_numpy()
     number_sample = random_array
-    print(random_array.shape)
 
         
     var_arr=list(df.columns)
@@ -28,7 +27,6 @@ def para_csv2nc(path_to_csv, output_path, sample_n):
 
     for k in range(samp):
         number_sample.append("{0:03}".format(k+1))
-    print(f'The number of samples is {number_sample}')
     
     design1 = np.empty((samp,nmb_var))
     

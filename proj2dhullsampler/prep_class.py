@@ -31,6 +31,7 @@ class CaseDirectory:
         (self.root / "tabs").mkdir(exist_ok=True)
         (self.root / "python_obj").mkdir(exist_ok=True)
         (self.root / "class_obj").mkdir(exist_ok=True)
+        (self.root / "output").mkdir(exist_ok=True)
 
     @property
     def path_y_emu(self):
@@ -48,6 +49,9 @@ class CaseDirectory:
     def path_class_obj(self):
         return self.root / "class_obj"
 
+    @property
+    def path_output(self):
+        return self.root / "output"
 
 
 def visualize_emulation(X_gcm_norm, X_emu, y_gcm, y_emu_norm, para_inds, tf_mask, para_nm, obs):

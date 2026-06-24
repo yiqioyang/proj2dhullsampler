@@ -11,6 +11,7 @@ from .plotting import visualize_emulation
 from .aux import para_csv2nc
 from .prep_class import Prepare_Case
 import glob
+import matplotlib.pyplot as plt
 
 
 def meta_one_hot_shot(meta, para_nm):
@@ -320,17 +321,17 @@ class HistoryMatching:
 
 
 
-    def save_samples(self, top_n = 100, result_name):
+    def save_samples_specifications(self, result_name, top_n = 100):
 
         self.result_name = result_name
 
-        csv_path1 = self.root / result_name + '_all_para_realscale.csv'
-        nc_path1 = self.root / result_name + 'all_para_realscale.nc'
+        csv_path1 = self.root / ('output/' + result_name + '_all_para_realscale.csv')
+        nc_path1 = self.root / ('output/' + result_name + '_all_para_realscale.nc')
 
-        csv_path2 = self.root / result_name + 'topn_para_realscale.csv'
-        nc_path2 = self.root / result_name + 'topn_para_realscale.nc'
+        csv_path2 = self.root / ('output/' + result_name + '_topn_para_realscale.csv')
+        nc_path2 = self.root / ('output/' + result_name + '_topn_para_realscale.nc')
 
-        if ~csv_path1.exists():
+        if not csv_path1.exists():
             self.results.realscale_samples.to_csv(csv_path1)
             para_csv2nc(csv_path1, nc_path1, self.results.realscale_samples.shape[0])
 
@@ -338,7 +339,9 @@ class HistoryMatching:
             para_csv2nc(csv_path2, nc_path2, top_n)
         else:
             raise FileExistsError(f'result_name {result_name} already exists')
-    
+
+        self.write_specifications()
+
 
     def write_specifications(self):
         def _key_to_str(key):
@@ -371,12 +374,43 @@ class HistoryMatching:
         spec_dict = _to_jsonable(spec_dict)
 
         # Python-friendly + human-friendly canonical output
-        specificatiaon_path = self.root / self.result_name + "specifications.json"
-        with open(specificatiaon, "w", encoding="utf-8") as f:
+        specificatiaon_path = self.root / ('output/' + self.result_name + "_specifications.json")
+        with open(specificatiaon_path, "w", encoding="utf-8") as f:
             json.dump(spec_dict, f, indent=2, sort_keys=True, ensure_ascii=False)
 
         dropped_vars_dict = _to_jsonable(vars(self.dropped_vars))
-        dropped_vars_path = self.root / self.result_name + "dropped_vars.json"
+        dropped_vars_path = self.root / ('output/' + self.result_name + "_dropped_vars.json")
         with open(dropped_vars_path, "w", encoding="utf-8") as f:
             json.dump(dropped_vars_dict, f, indent=2, sort_keys=True, ensure_ascii=False)
 
+
+
+
+    def compare_with_original(self, df_vline=None, bins=30, density=True):
+
+        dfs = [self.ppe_para, self.results.realscale_samples.iloc[:self.ppe_para.shape[0],:]]
+
+        cols = dfs[0].columns
+        ncols = 5
+        nrows = (len(cols) + ncols - 1) // ncols
+        fig, axes = plt.subplots(nrows, ncols, figsize=(4*ncols, 3*nrows), squeeze=False)
+
+        df_vline = df_vline 
+
+        for ax, c in zip(axes.ravel(), cols):
+            # histograms
+            for i, df in enumerate(dfs):
+                ax.hist(df[c].dropna(), bins=bins, density=density, alpha=0.4, label=f"hist{i}")
+            # vlines
+            if df_vline is not None:
+                for j, df in enumerate(df_vline):
+                    vals = df[c].dropna()
+                    for k, v in enumerate(vals):
+                        ax.axvline(v, alpha=0.7, lw=1.5, linestyle="--",
+                                label=f"vline{j}" if k == 0 else None)
+            ax.set_title(c)
+
+        for ax in axes.ravel()[len(cols):]:
+            ax.axis("off")
+        axes[0,0].legend()
+        fig.tight_layout()
