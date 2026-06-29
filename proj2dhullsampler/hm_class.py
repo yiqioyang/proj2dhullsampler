@@ -72,23 +72,14 @@ class HistoryMatching:
             print("No case created")
 
 
-    # def sensitivity_emulation(self, n_sens_p = 2, n_cpus = 15):
-        
-    #     sampled_paras = xr.open_dataset(self.root / "sampled_parameters.nc").to_dataframe()
-        
-    #     results = Parallel(n_jobs=n_cpus)(
-    #                     delayed(gp_training_application)(self.ppe_para_norm, self.data_ppe, y_name, sampled_paras, path = str(self.root) + "/", n_sens_p=n_sens_p)
-    #                     for y_name in self.var_nm)
-    #                 )
+    def prepare_case(self, config):
+        self.prep_case.sensitivity_emulation(n_cpus=config['n_cpus'])
+        self.load_case()
+        for level in config['threshold_levels']:
+            self.create_mask(threshold_level=level)
 
-    #     del sampled_paras
 
-    #     meta_xy_dict = {pair[0]: pd.Series(pair[1]) for pair in results if pair is not None}
-    #     meta = pd.concat(list(meta_xy_dict.values()), axis = 1)
-    #     meta.columns = list(meta_xy_dict.keys())
-    #     self.meta = meta
-        
-    #     meta.to_csv(self.root / "meta.csv", index=True)
+
 
     def create_mask(self, threshold_level):
 ###########################
