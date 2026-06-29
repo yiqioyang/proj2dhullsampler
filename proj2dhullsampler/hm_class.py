@@ -238,6 +238,10 @@ class HistoryMatching:
 
         return summary_table
 
+
+    
+
+
     def drop_no_overlap2d_vars(self, vars_to_drop):
         if not set(vars_to_drop).issubset(list(self.tf_masks.columns)):
             print('Warning: some variables that are proposed to drop are already dropped in previous steps')
