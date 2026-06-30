@@ -1,7 +1,7 @@
 import numpy as np
 from scipy.spatial import Delaunay
-
-from .utils import dist_cal
+from tqdm import tqdm
+import trimesh
 
 
 
