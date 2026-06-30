@@ -122,9 +122,10 @@ def visualize_emulation(X_gcm_norm, X_emu, y_gcm, y_emu_norm, para_inds, tf_mask
     xy_emu = pd.concat([X_emu, y_emu_norm], axis = 1)
     xy_emu_sub = xy_emu[tf_mask]
 
-    xy_emu = xy_emu.sample(50000)
-    if xy_emu_sub.shape[0] > 50000:
-        xy_emu_sub = xy_emu_sub.sample(50000)
+
+    xy_emu = xy_emu.sample(5000)
+    if xy_emu_sub.shape[0] > 5000:
+        xy_emu_sub = xy_emu_sub.sample(5000)
             
 
 

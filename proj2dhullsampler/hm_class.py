@@ -333,6 +333,9 @@ class HistoryMatching:
     def draw(self, n_pts=50000, n_threshold=5000, sample_threshold=10**8, max_workers=32, n_max = 1000):
         valid_hulls = self.results.valid_hulls
         samples = sample_from_hulls_n(list(valid_hulls.keys()), self.para_nm, valid_hulls, n_pts, n_threshold, max_workers, sample_threshold)
+        if samples is None:
+            raise ValueError("No samples can be found; need reconfiguration")
+        
         if samples.shape[0]>n_max:
             samples = samples.iloc[:n_max]
             
@@ -355,7 +358,12 @@ class HistoryMatching:
             self.results.realscale_samples.to_csv(csv_path1)
             para_csv2nc(csv_path1, nc_path1, self.results.realscale_samples.shape[0])
 
-            self.results.realscale_samples.iloc[:top_n,:].to_csv(csv_path2)
+            if self.results.realscale_samples.shape[0] > top_n:
+                self.results.realscale_samples.iloc[:top_n,:].to_csv(csv_path2)
+            else:
+                top_n = self.results.realscale_samples.shape[0]
+                self.results.realscale_samples.iloc[:top_n,:].to_csv(csv_path2)
+            
             para_csv2nc(csv_path2, nc_path2, top_n)
         else:
             raise FileExistsError(f'result_name {result_name} already exists')
