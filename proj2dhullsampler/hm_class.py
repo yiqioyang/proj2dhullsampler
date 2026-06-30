@@ -246,6 +246,7 @@ class HistoryMatching:
 
             if (no_over_count == 0) & (i < no_iter -1) & (i > 0): 
                 print('Finished dropping variables')
+                self.group_para_climatology(overlapping_threshold)
                 return 
             
             if (no_over_count > 0) & (i == no_iter -1):
