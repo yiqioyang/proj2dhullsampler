@@ -1,3 +1,8 @@
+import numpy as np
+from scipy.spatial import Delaunay
+
+from .utils import dist_cal
+
 
 
 def circum_radius_calculation(pta, ptb, ptc, ptd):
@@ -78,6 +83,5 @@ def alpha_shape2d(points, alpha, only_outer=True):
             add_edge(edges, ib, ic)
             add_edge(edges, ic, ia)
     return edges
-
 
 
