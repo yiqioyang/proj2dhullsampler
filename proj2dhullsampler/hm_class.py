@@ -40,8 +40,8 @@ class HistoryMatching:
         
     def create_case(self, para, tabs, ppe, obs, obs_dict, lat_bins, manul_ppe_info, n_sample):
         if self.root.exists():
-            print("Directory already exists")
-            return 
+            raise FileExistsError("Directory already exists")
+        
         else:
             print("Start creating new case")
             prep_case = Prepare_Case(self.working_dir, self.case_name, para, tabs, ppe, obs, obs_dict, lat_bins, manul_ppe_info, n_sample)
