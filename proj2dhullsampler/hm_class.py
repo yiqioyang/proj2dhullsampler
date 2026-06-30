@@ -274,7 +274,7 @@ class HistoryMatching:
         self.var_nm = list(self.tf_masks.columns)
         self.meta = self.meta[self.var_nm]
         self.meta_onehot = meta_one_hot_shot(self.meta, self.para_nm)
-        self.dropped_vars.nooverlap2d.append(vars_to_drop)
+        self.dropped_vars.nooverlap2d.append(vars_to_drop[0])
         #self.specifications.drop_vars_2d = vars_to_drop
         
     
