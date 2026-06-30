@@ -236,8 +236,33 @@ class HistoryMatching:
         if len(self.paras_vars_0) == 0:
             print('No non-overlapping variables at this stage for the variables sharing the same 2 sensitive parameters')
 
-        return summary_table
+        return summary_table, len(self.paras_vars_0)
 
+    
+    def remove_var2d_auto(self, overlapping_threshold, no_iter = 100):
+    
+        for i in range(no_iter):
+
+            self.group_para_climatology(overlapping_threshold)
+            summary2d, no_over_count = self.shuffle_vars()
+
+            if (i == 0) & (no_over_count == 0):
+                print('No need to consider non-overlapping')
+
+            if (no_over_count > 0) & (i < no_iter -1) & (i > 0):
+                c_s = pd.concat(list(summary2d.values()), axis = 0).sort_values(by='count')
+                c_s = c_s[c_s['count'] < overlapping_threshold]
+                no_overlap_2d_var = list(c_s[['var1', 'var2']].stack().value_counts()[:1].index) 
+                #no_overlap_2d_vars = no_overlap_2d_vars.append(no_overlap_2d_var[0])
+                print(f'Drop variable {no_overlap_2d_var}')
+                self.drop_no_overlap2d_vars(no_overlap_2d_var)
+
+            if (no_over_count == 0) & (i < no_iter -1) & (i > 0): 
+                print('Finished dropping variables')
+                return 
+            
+            if (no_over_count > 0) & (i == no_iter -1):
+                print('Failed to resolve non-overlapping')
 
     
 
@@ -250,7 +275,7 @@ class HistoryMatching:
         self.meta = self.meta[self.var_nm]
         self.meta_onehot = meta_one_hot_shot(self.meta, self.para_nm)
         self.dropped_vars.nooverlap2d.append(vars_to_drop)
-        self.specifications.drop_vars_2d = vars_to_drop
+        #self.specifications.drop_vars_2d = vars_to_drop
         
     
     def visualize(self, para_pair):
@@ -362,7 +387,7 @@ class HistoryMatching:
             "n_survive": getattr(self.specifications, "n_survive", None),
             "n_var_thre_per_parapair": getattr(self.specifications, "n_var_thre_per_parapair", None),
             "overlapping_threshold": getattr(self.specifications, "overlapping_threshold", None),
-            "drop_vars_2d": getattr(self.specifications, "drop_vars_2d", None),
+            #"drop_vars_2d": getattr(self.specifications, "drop_vars_2d", None),
             "dropped_during_orchastrate": getattr(self.specifications, "dropped_during_orchastrate", None),
             'para_var' : self.paras_vars,
         }
