@@ -168,20 +168,7 @@ class HistoryMatching:
         
         
 
-    def hull_for_each(self, shape_alpha = 5):
-        hull_per_var = {}
-        for v in self.var_nm:
-            p_ind = self.meta[v].sort_values().values
-            pts = self.p_emu[self.tf_masks[v]].iloc[:,p_ind]
-            if pts.shape[0] > 5000:
-               pts = pts.sample(5000)
-
-            pts = pts.values
-            
-            hull_per_var[v] = alphashape.alphashape(pts, shape_alpha)
-
-        self.hull_per_var = hull_per_var
-
+   
 
     def group_para_climatology(self, overlapping_threshold = 10000):
 
@@ -277,15 +264,7 @@ class HistoryMatching:
         self.dropped_vars.nooverlap2d.append(vars_to_drop[0])
         #self.specifications.drop_vars_2d = vars_to_drop
         
-    
-    def visualize(self, para_pair):
-        para_pair = tuple(para_pair)
-        survive_pts = self.p_emu[self.tf_masks[self.paras_vars[para_pair]].all(axis = 1)]
 
-        if survive_pts.shape[0] > 5000:
-            survive_pts = survive_pts.sample(5000)
-
-        return survive_pts
 
     def build_hulls(self, shape_alpha = 5):
         grouped_hulls = {}
@@ -304,6 +283,8 @@ class HistoryMatching:
             
         self.grouped_hulls = grouped_hulls
     
+
+
     def rescale_para(self, sampled_para):
         ppe_para = self.ppe_para
         return (ppe_para.max() - ppe_para.min()) * sampled_para + ppe_para.min()
