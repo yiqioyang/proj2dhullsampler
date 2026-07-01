@@ -236,9 +236,12 @@ class HistoryMatching:
             if (i == 0) & (no_over_count == 0):
                 print('No need to consider non-overlapping')
 
-            if (no_over_count > 0) & (i < no_iter -1) & (i > 0):
+            if (no_over_count > 0) & (i < no_iter -1) & (i >= 0):
                 c_s = pd.concat(list(summary2d.values()), axis = 0).sort_values(by='count')
                 c_s = c_s[c_s['count'] < overlapping_threshold]
+                if i == 0:
+                    c_s.to_csv(self.root / 'output/diagnostic_2d_structural_error.csv')
+
                 no_overlap_2d_var = list(c_s[['var1', 'var2']].stack().value_counts()[:1].index) 
                 #no_overlap_2d_vars = no_overlap_2d_vars.append(no_overlap_2d_var[0])
                 print(f'Drop variable {no_overlap_2d_var}')
