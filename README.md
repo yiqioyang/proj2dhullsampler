@@ -21,7 +21,8 @@ proj2dhullsampler/
 │   ├── preprocess.py
 │   ├── plotting.py
 │   ├── aux.py
-│   └── utils.py
+│   ├── utils.py
+│   └── unused_funs.py   # exploratory helpers kept for reference; not imported by the package
 ├── notebooks/
 │   ├── prepare.ipynb
 │   └── implementation.ipynb
@@ -76,6 +77,12 @@ hm.prepare_case(
 )
 ```
 
+`prepare_case`'s config only controls `n_cpus` and `threshold_levels`. The
+number of sensitive parameters retained per diagnostic (`n_sens_p`, default
+`2`) is not exposed through this path; to change it, call
+`hm.prep_case.sensitivity_emulation(n_sens_p=..., n_cpus=...)` directly
+before calling `hm.load_case()`.
+
 This creates a case directory like:
 
 ```text
@@ -124,14 +131,19 @@ Typical files expected in the case directory at this stage include:
 
 ### 3. Run history matching and sample new parameters
 
-`HistoryMatching` groups diagnostics by parameter pair, builds alpha-shape
-hulls, checks overlap, and draws new samples from the feasible region.
+`HistoryMatching` filters out uninformative diagnostics, groups the remaining
+ones by their most sensitive parameter pair, resolves cases where the
+surviving regions for co-grouped diagnostics don't overlap, builds alpha-shape
+hulls, and draws new samples from the feasible region.
 
-Example:
+Example (mirrors the order used in `notebooks/apply.ipynb`):
 
 ```python
-hm.drop_by_n_survive(n_survive=50)
-hm.group_para_climatology(overlapping_threshold=10_000)
+hm.drop_by_name(["local_PRECT_4_7_1_359"])   # drop diagnostics by name prefix
+hm.drop_by_n_survive(n_survive=50)           # drop diagnostics that are always/rarely satisfied
+hm.remove_var2d_auto(overlapping_threshold=10_000)  # resolve non-overlapping parameter-pair groups
+hm.drop_by_nvar_per_pair(n_var_thre=1)       # optional: drop pairs backed by too few diagnostics
+
 hm.prepare_for_sampling(
     shape_alpha=5,
     n_pts=10_000,
@@ -147,7 +159,14 @@ hm.draw(
     n_max=1_000,
 )
 hm.save_samples_specifications(result_name="case_a", top_n=100)
+hm.compare_with_original()  # optional: sanity-check sampled vs. original PPE parameter ranges
 ```
+
+`remove_var2d_auto` calls `group_para_climatology` (grouping diagnostics by
+sensitive parameter pair) and `shuffle_vars` (checking overlap within each
+group) internally and iterates until no non-overlapping groups remain, or
+until `no_iter` iterations are exhausted. Call `group_para_climatology`
+directly only if you need the grouping without the overlap-resolution loop.
 
 The final saved outputs are written under `case_a/output/`, including:
 
