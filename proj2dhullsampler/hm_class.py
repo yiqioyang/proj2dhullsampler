@@ -40,8 +40,8 @@ class HistoryMatching:
         
     def create_case(self, para, tabs, ppe, obs, obs_dict, lat_bins, manul_ppe_info, n_sample):
         if self.root.exists():
-            print("Directory already exists")
-            return 
+            raise FileExistsError("Directory already exists")
+        
         else:
             print("Start creating new case")
             prep_case = Prepare_Case(self.working_dir, self.case_name, para, tabs, ppe, obs, obs_dict, lat_bins, manul_ppe_info, n_sample)
@@ -72,23 +72,14 @@ class HistoryMatching:
             print("No case created")
 
 
-    # def sensitivity_emulation(self, n_sens_p = 2, n_cpus = 15):
-        
-    #     sampled_paras = xr.open_dataset(self.root / "sampled_parameters.nc").to_dataframe()
-        
-    #     results = Parallel(n_jobs=n_cpus)(
-    #                     delayed(gp_training_application)(self.ppe_para_norm, self.data_ppe, y_name, sampled_paras, path = str(self.root) + "/", n_sens_p=n_sens_p)
-    #                     for y_name in self.var_nm)
-    #                 )
+    def prepare_case(self, config):
+        self.prep_case.sensitivity_emulation(n_cpus=config['n_cpus'])
+        self.load_case()
+        for level in config['threshold_levels']:
+            self.create_mask(threshold_level=level)
 
-    #     del sampled_paras
 
-    #     meta_xy_dict = {pair[0]: pd.Series(pair[1]) for pair in results if pair is not None}
-    #     meta = pd.concat(list(meta_xy_dict.values()), axis = 1)
-    #     meta.columns = list(meta_xy_dict.keys())
-    #     self.meta = meta
-        
-    #     meta.to_csv(self.root / "meta.csv", index=True)
+
 
     def create_mask(self, threshold_level):
 ###########################
@@ -177,20 +168,7 @@ class HistoryMatching:
         
         
 
-    def hull_for_each(self, shape_alpha = 5):
-        hull_per_var = {}
-        for v in self.var_nm:
-            p_ind = self.meta[v].sort_values().values
-            pts = self.p_emu[self.tf_masks[v]].iloc[:,p_ind]
-            if pts.shape[0] > 5000:
-               pts = pts.sample(5000)
-
-            pts = pts.values
-            
-            hull_per_var[v] = alphashape.alphashape(pts, shape_alpha)
-
-        self.hull_per_var = hull_per_var
-
+   
 
     def group_para_climatology(self, overlapping_threshold = 10000):
 
@@ -245,7 +223,40 @@ class HistoryMatching:
         if len(self.paras_vars_0) == 0:
             print('No non-overlapping variables at this stage for the variables sharing the same 2 sensitive parameters')
 
-        return summary_table
+        return summary_table, len(self.paras_vars_0)
+
+    
+    def remove_var2d_auto(self, overlapping_threshold, no_iter = 100):
+    
+        for i in range(no_iter):
+
+            self.group_para_climatology(overlapping_threshold)
+            summary2d, no_over_count = self.shuffle_vars()
+
+            if (i == 0) & (no_over_count == 0):
+                print('No need to consider non-overlapping')
+
+            if (no_over_count > 0) & (i < no_iter -1) & (i >= 0):
+                c_s = pd.concat(list(summary2d.values()), axis = 0).sort_values(by='count')
+                c_s = c_s[c_s['count'] < overlapping_threshold]
+                if i == 0:
+                    c_s.to_csv(self.root / 'output/diagnostic_2d_structural_error.csv')
+
+                no_overlap_2d_var = list(c_s[['var1', 'var2']].stack().value_counts()[:1].index) 
+                #no_overlap_2d_vars = no_overlap_2d_vars.append(no_overlap_2d_var[0])
+                print(f'Drop variable {no_overlap_2d_var}')
+                self.drop_no_overlap2d_vars(no_overlap_2d_var)
+
+            if (no_over_count == 0) & (i < no_iter -1) & (i > 0): 
+                print('Finished dropping variables')
+                self.group_para_climatology(overlapping_threshold)
+                return 
+            
+            if (no_over_count > 0) & (i == no_iter -1):
+                print('Failed to resolve non-overlapping')
+
+    
+
 
     def drop_no_overlap2d_vars(self, vars_to_drop):
         if not set(vars_to_drop).issubset(list(self.tf_masks.columns)):
@@ -254,18 +265,10 @@ class HistoryMatching:
         self.var_nm = list(self.tf_masks.columns)
         self.meta = self.meta[self.var_nm]
         self.meta_onehot = meta_one_hot_shot(self.meta, self.para_nm)
-        self.dropped_vars.nooverlap2d.append(vars_to_drop)
-        self.specifications.drop_vars_2d = vars_to_drop
+        self.dropped_vars.nooverlap2d.append(vars_to_drop[0])
+        #self.specifications.drop_vars_2d = vars_to_drop
         
-    
-    def visualize(self, para_pair):
-        para_pair = tuple(para_pair)
-        survive_pts = self.p_emu[self.tf_masks[self.paras_vars[para_pair]].all(axis = 1)]
 
-        if survive_pts.shape[0] > 5000:
-            survive_pts = survive_pts.sample(5000)
-
-        return survive_pts
 
     def build_hulls(self, shape_alpha = 5):
         grouped_hulls = {}
@@ -284,6 +287,8 @@ class HistoryMatching:
             
         self.grouped_hulls = grouped_hulls
     
+
+
     def rescale_para(self, sampled_para):
         ppe_para = self.ppe_para
         return (ppe_para.max() - ppe_para.min()) * sampled_para + ppe_para.min()
@@ -313,6 +318,9 @@ class HistoryMatching:
     def draw(self, n_pts=50000, n_threshold=5000, sample_threshold=10**8, max_workers=32, n_max = 1000):
         valid_hulls = self.results.valid_hulls
         samples = sample_from_hulls_n(list(valid_hulls.keys()), self.para_nm, valid_hulls, n_pts, n_threshold, max_workers, sample_threshold)
+        if samples is None:
+            raise ValueError("No samples can be found; need reconfiguration")
+        
         if samples.shape[0]>n_max:
             samples = samples.iloc[:n_max]
             
@@ -335,7 +343,12 @@ class HistoryMatching:
             self.results.realscale_samples.to_csv(csv_path1)
             para_csv2nc(csv_path1, nc_path1, self.results.realscale_samples.shape[0])
 
-            self.results.realscale_samples.iloc[:top_n,:].to_csv(csv_path2)
+            if self.results.realscale_samples.shape[0] > top_n:
+                self.results.realscale_samples.iloc[:top_n,:].to_csv(csv_path2)
+            else:
+                top_n = self.results.realscale_samples.shape[0]
+                self.results.realscale_samples.iloc[:top_n,:].to_csv(csv_path2)
+            
             para_csv2nc(csv_path2, nc_path2, top_n)
         else:
             raise FileExistsError(f'result_name {result_name} already exists')
@@ -367,7 +380,7 @@ class HistoryMatching:
             "n_survive": getattr(self.specifications, "n_survive", None),
             "n_var_thre_per_parapair": getattr(self.specifications, "n_var_thre_per_parapair", None),
             "overlapping_threshold": getattr(self.specifications, "overlapping_threshold", None),
-            "drop_vars_2d": getattr(self.specifications, "drop_vars_2d", None),
+            #"drop_vars_2d": getattr(self.specifications, "drop_vars_2d", None),
             "dropped_during_orchastrate": getattr(self.specifications, "dropped_during_orchastrate", None),
             'para_var' : self.paras_vars,
         }

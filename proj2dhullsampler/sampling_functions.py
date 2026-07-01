@@ -156,13 +156,15 @@ def orchestrate_test(para_seq, X, tf_masks, para_nm, grouped_hulls, paras_vars, 
             print("First sample out_prev that needs greater sample size, which will take long")
             out_prev = sample_from_hulls_n(para_l[:-1], para_nm, grouped_hulls, n_pts=  n_pts, n_threshold = n_threshold, max_workers = max_workers, sample_threshold=sample_threshold * 120 * round(error_sample_size_scaling))
             
+            if (out_prev is None):
+                raise ValueError("out_prev is None")
+
             print(f'The size of out_prev is {out_prev.shape[0]}')
             if (out_prev.shape[0] < 100) & (out_prev.shape[0] > 0) & (out_prev is not None):
                 error_sample_size_scaling = min(100.0/out_prev.shape[0], 100)
                 print(f'Increase the scheudler ratio to {error_sample_size_scaling}')
                 
-            if (out_prev is None):
-                print("out_prev issue")
+
     
             check_pt = test_ind_vars(out_prev, X, para_nm, tf_masks, grouped_hulls, p, paras_vars, shape_alpha = 5)
             if check_pt is None:

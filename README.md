@@ -36,11 +36,10 @@ The code is structured around three stages.
 
 ### 1. Prepare a case directory
 
-`Prepare_Case` creates a case folder, writes uniformly sampled normalized
-parameters, and builds tabular PPE and observation features.
-
-`Prep_Mask_Generation` is kept as a public import alias for older notebooks and
-scripts. It points to the same implementation as `Prepare_Case`.
+`HistoryMatching` is the package entry point. Its `create_case` method creates
+the case folder, writes uniformly sampled normalized parameters, and builds
+tabular PPE and observation features. `prepare_case` then trains the emulators
+and creates masks for the configured uncertainty thresholds.
 
 Expected inputs are typically:
 
@@ -55,11 +54,10 @@ Expected inputs are typically:
 Example:
 
 ```python
-from proj2dhullsampler import Prepare_Case
+from proj2dhullsampler import HistoryMatching
 
-prep = Prepare_Case(
-    working_dir="/path/to/work",
-    case_name="case_a",
+hm = HistoryMatching("/path/to/work", "case_a")
+hm.create_case(
     para=parameter_table,
     tabs=None,
     ppe=ppe_ds,
@@ -70,8 +68,12 @@ prep = Prepare_Case(
     n_sample=1_000_000,
 )
 
-prep.sensitivity_emulation(n_sens_p=2, n_cpus=15)
-prep.mask_generation(threshold_level=2.0)
+hm.prepare_case(
+    {
+        "n_cpus": 15,
+        "threshold_levels": [2.0, 2.5],
+    }
+)
 ```
 
 This creates a case directory like:
@@ -92,9 +94,8 @@ case_a/
 
 ### 2. Load masks and inspect emulator outputs
 
-`HistoryMatching` loads saved masks, metadata, emulator inputs, and feature
-tables. `Analysis` is kept as a public import alias to `HistoryMatching` for
-older notebooks and scripts.
+For an existing case, `HistoryMatching` loads saved masks, metadata, emulator
+inputs, and feature tables.
 
 Example:
 
@@ -159,27 +160,13 @@ The final saved outputs are written under `case_a/output/`, including:
 
 ## Public API
 
-Main classes:
+The package exposes one public class:
 
-- `Prepare_Case`: prepare case directories, sampled parameters, emulators, and masks
-- `HistoryMatching`: filter diagnostics, build hulls, and generate candidate samples
-- `Prep_Mask_Generation`: compatibility alias for `Prepare_Case`
-- `Analysis`: compatibility alias for `HistoryMatching`
+- `HistoryMatching`: create and prepare cases, filter diagnostics, build hulls,
+  and generate candidate parameter samples.
 
-Sampling and plotting helpers:
-
-- `sample_from_hull`
-- `sample_from_hulls_n`
-- `orchestrate_test`
-- `biplot`
-- `biplot_original_scale`
-
-Utility helpers:
-
-- `feature_builder`: build PPE and observation feature tables
-- `gp_training_application`: fit GP emulators and write mean/std predictions
-- `metric_cal_single`: compute weighted average/bias/RMSE style metrics
-- `para_csv2nc`: convert sampled parameter CSV files to NetCDF
+The functions in the other package modules support `HistoryMatching` internally
+and are not part of the stable top-level API.
 
 ## Installation
 

@@ -111,7 +111,9 @@ def feature_builder(tabs, ppe = None, obs = None, obs_dict = None, lat_bins = No
         if manul_ppe_info is not None and lat_bins is None:
             ppe_zonal_manual, obs_zonal_manual = local_process(ppe, obs, obs_dict, manul_ppe_info)
 
-        
+        if manul_ppe_info is None and lat_bins is None:
+            raise ValueError("Need to specify lat_bins or manul_ppe_info")
+
         if tabs is None:
             if obs_zonal_manual.index.equals(ppe_zonal_manual.columns):
                 print("obs and ppe variable names match")
