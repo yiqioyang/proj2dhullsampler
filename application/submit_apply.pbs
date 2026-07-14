@@ -1,0 +1,29 @@
+#!/bin/bash
+### Fill in <PROJECT_CODE> below with your NCAR project allocation, and adjust
+### the queue/select/walltime for the size of the case you're running. Submit with:
+###   qsub submit_apply.pbs
+
+#PBS -N proj2dhullsampler_apply
+#PBS -A P93300313
+#PBS -q casper
+#PBS -l select=1:ncpus=8:mem=64GB
+#PBS -l walltime=04:00:00
+#PBS -j oe
+#PBS -o run_apply.log
+
+# n_cpus/max_workers in apply_config.json are optional: if left out, run_apply.py
+# detects this job's actual CPU allocation (via sched_getaffinity, which reflects
+# select=...:ncpus=N above) and uses that instead. Set them explicitly in the
+# config only if you want a specific worker count regardless of what was requested
+# here.
+
+cd "$PBS_O_WORKDIR"
+
+# Plain "conda activate" fails in a non-interactive batch shell ("invalid choice:
+# 'activate'") unless the conda shell hook is sourced first.
+module load conda
+
+source /glade/u/apps/opt/conda/ncarbin/conda.sh
+
+conda activate /glade/work/qingyuany/conda-envs/ml_env
+python run_apply.py --config apply_config.json

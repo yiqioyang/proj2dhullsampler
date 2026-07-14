@@ -86,8 +86,10 @@ def feature_builder(tabs, ppe = None, obs = None, obs_dict = None, lat_bins = No
             print("obs and ppe variable names match")
             return ppe_tab, obs_tab
         else:
-            print("obs and ppe variable names do not match")
-            return 
+            raise ValueError(
+                "obs and ppe variable names do not match: "
+                f"obs_tab.index={list(obs_tab.index)}, ppe_tab.columns={list(ppe_tab.columns)}"
+            )
 
     else:
         if manul_ppe_info is not None and lat_bins is not None:
@@ -98,8 +100,10 @@ def feature_builder(tabs, ppe = None, obs = None, obs_dict = None, lat_bins = No
                 print("Manual and zonal indices match")
 
             else:
-                print("Manual and zonal indices NOT match")
-                return
+                raise ValueError(
+                    "Manual and zonal indices do not match: "
+                    f"manual={list(ppe_manual_pd.index)}, zonal={list(ppe_zonal_pd.index)}"
+                )
             
             ppe_zonal_manual = pd.concat([ppe_zonal_pd, ppe_manual_pd], axis = 1)
             obs_zonal_manual = pd.concat([obs_zonal_pd, obs_manual_pd])
@@ -119,8 +123,11 @@ def feature_builder(tabs, ppe = None, obs = None, obs_dict = None, lat_bins = No
                 print("obs and ppe variable names match")
                 return ppe_zonal_manual, obs_zonal_manual
             else:
-                print("obs and ppe variable names do not match")
-                return 
+                raise ValueError(
+                    "obs and ppe variable names do not match: "
+                    f"obs_zonal_manual.index={list(obs_zonal_manual.index)}, "
+                    f"ppe_zonal_manual.columns={list(ppe_zonal_manual.columns)}"
+                )
         else:
             ppe_tab, obs_tab = tabs
             if ppe_tab.index.equals(ppe_zonal_manual.index):
@@ -133,12 +140,18 @@ def feature_builder(tabs, ppe = None, obs = None, obs_dict = None, lat_bins = No
                     print("obs and ppe variable names match")
                     return ppe_combine, obs_combine
                 else:
-                    print("obs and ppe variable names do not match")
-                    return 
+                    raise ValueError(
+                        "obs and ppe variable names do not match: "
+                        f"obs_combine.index={list(obs_combine.index)}, "
+                        f"ppe_combine.columns={list(ppe_combine.columns)}"
+                    )
 
             else:
-                print("Tabulated and processed data indices do not match")
-                return
+                raise ValueError(
+                    "Tabulated and processed data indices do not match: "
+                    f"ppe_tab.index={list(ppe_tab.index)}, "
+                    f"ppe_zonal_manual.index={list(ppe_zonal_manual.index)}"
+                )
 
 
 

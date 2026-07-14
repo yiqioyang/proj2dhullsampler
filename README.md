@@ -23,9 +23,13 @@ proj2dhullsampler/
 │   ├── aux.py
 │   ├── utils.py
 │   └── unused_funs.py   # exploratory helpers kept for reference; not imported by the package
-├── notebooks/
-│   ├── prepare.ipynb
-│   └── implementation.ipynb
+├── application/
+│   ├── apply.ipynb        # interactive, notebook-mode walkthrough
+│   ├── apply_config.json  # example config for run_apply.py
+│   ├── run_apply.py       # notebook-free, config-driven script
+│   ├── submit_apply.pbs   # PBS job template for Casper/Derecho
+│   ├── implementation.ipynb
+│   └── prepare.ipynb
 ├── tests/
 ├── pyproject.toml
 └── README.md
@@ -73,13 +77,14 @@ hm.prepare_case(
     {
         "n_cpus": 15,
         "threshold_levels": [2.0, 2.5],
+        "mode": "notebook",  # or "python"; see "Notebook vs. python mode" below
     }
 )
 ```
 
-`prepare_case`'s config only controls `n_cpus` and `threshold_levels`. The
-number of sensitive parameters retained per diagnostic (`n_sens_p`, default
-`2`) is not exposed through this path; to change it, call
+`prepare_case`'s config controls `n_cpus`, `threshold_levels`, and (optionally)
+`mode`. The number of sensitive parameters retained per diagnostic (`n_sens_p`,
+default `2`) is not exposed through this path; to change it, call
 `hm.prep_case.sensitivity_emulation(n_sens_p=..., n_cpus=...)` directly
 before calling `hm.load_case()`.
 
@@ -136,7 +141,7 @@ ones by their most sensitive parameter pair, resolves cases where the
 surviving regions for co-grouped diagnostics don't overlap, builds alpha-shape
 hulls, and draws new samples from the feasible region.
 
-Example (mirrors the order used in `notebooks/apply.ipynb`):
+Example (mirrors the order used in `application/apply.ipynb`):
 
 ```python
 hm.drop_by_name(["local_PRECT_4_7_1_359"])   # drop diagnostics by name prefix
@@ -177,6 +182,73 @@ The final saved outputs are written under `case_a/output/`, including:
 - `<result_name>_specifications.json`
 - `<result_name>_dropped_vars.json`
 
+## Notebook vs. python mode
+
+`HistoryMatching` accepts a `mode` of `"notebook"` (the default) or `"python"`,
+set either at construction (`HistoryMatching(working_dir, case_name, mode=...)`)
+or via the `"mode"` key in the dict passed to `prepare_case` (which overrides
+whatever was set at construction). It affects the two methods that produce
+checkup figures during the workflow, `visualize_check` and
+`compare_with_original`:
+
+- `"notebook"`: figures are shown inline with `plt.show()`, as before.
+- `"python"`: figures are saved as PNGs to `<case_dir>/diagnostics/` instead of
+  being displayed, and the figure `Axes` are closed afterward to avoid leaking
+  memory across a long-running script.
+
+`mode` only controls figure display/saving. It doesn't affect any of the
+`print()`-based status messages elsewhere in the pipeline (e.g. in
+`remove_var2d_auto` or the sensitivity-emulation step); those still go to
+stdout regardless of mode.
+
+## Running without a notebook
+
+`application/run_apply.py` replays the same workflow as `application/apply.ipynb`
+as a plain script, driven entirely by a JSON config file (see
+`application/apply_config.json` for a fully worked example, including data
+paths, `obs_dict`, `lat_bins`, manually selected regions, thresholds, and
+`mode`):
+
+```bash
+python application/run_apply.py --config application/apply_config.json
+```
+
+If the case directory doesn't exist yet, the script creates and prepares it
+(equivalent to `create_case` + `prepare_case`); if it already exists, the
+script loads it instead of re-running the (expensive) emulator training. When
+`config["mode"]` is `"python"`, the script also:
+
+- switches matplotlib to the non-interactive `Agg` backend, since there's no
+  display to show figures on,
+- tees all of the pipeline's `print()` output to
+  `<case_dir>/diagnostics/run_log.txt` in addition to stdout, so the
+  intermediate diagnostic messages survive an unattended/batch run.
+
+### Worker counts
+
+`prepare_case.n_cpus` (GP training parallelism) and `max_workers` (hull
+sampling parallelism) in the config are optional. If either is left out,
+`run_apply.py` falls back to the number of CPUs actually available to the
+process (`len(os.sched_getaffinity(0))`, which reflects a PBS/Slurm job's
+cgroup allocation, not just the whole node's core count). An explicit value
+in the config always takes precedence. The resolved values are printed (and,
+in `"python"` mode, logged to `run_log.txt`) at the start of each run.
+
+### Submitting as a PBS job
+
+`application/submit_apply.pbs` is a template job script for Casper/Derecho:
+
+```bash
+qsub application/submit_apply.pbs
+```
+
+Fill in `<PROJECT_CODE>` and adjust the `#PBS -q`/`select`/`walltime`
+directives for your case size. If you also drop `prepare_case.n_cpus` and
+`max_workers` from `apply_config.json`, the script automatically uses
+whatever CPU count the job was actually granted (see "Worker counts" above)
+instead of requiring the PBS resource request and the JSON config to be kept
+in sync by hand.
+
 ## Public API
 
 The package exposes one public class:
@@ -215,7 +287,8 @@ pytest
 
 ## Notes
 
-- The documented notebooks are `notebooks/prepare.ipynb` and
-  `notebooks/implementation.ipynb`.
+- The documented notebooks are `application/prepare.ipynb` and
+  `application/implementation.ipynb`; `application/apply.ipynb` and
+  `application/run_apply.py` cover the workflow described above.
 - Most geometry operations assume parameters have been normalized to the
   `[0, 1]` range before hull construction and sampling.

@@ -32,12 +32,31 @@ class EmulatedDataStorage:
         pass
 
 class HistoryMatching:
-    def __init__(self, working_dir, case_name):
+    def __init__(self, working_dir, case_name, mode="notebook"):
         self.working_dir = working_dir
         self.case_name = case_name
         self.root = Path(working_dir) / case_name
+        self.set_mode(mode)
 
-        
+    def set_mode(self, mode):
+        if mode not in ("notebook", "python"):
+            raise ValueError(f"mode must be 'notebook' or 'python', got {mode!r}")
+        self.mode = mode
+
+    @property
+    def diagnostics_dir(self):
+        d = self.root / "diagnostics"
+        d.mkdir(parents=True, exist_ok=True)
+        return d
+
+    def _finalize_figure(self, fig, name):
+        """Show the figure inline (notebook mode) or save it to disk and close it (python mode)."""
+        if self.mode == "python":
+            fig.savefig(self.diagnostics_dir / f"{name}.png", dpi=150, bbox_inches="tight")
+            plt.close(fig)
+        else:
+            plt.show()
+
     def create_case(self, para, tabs, ppe, obs, obs_dict, lat_bins, manul_ppe_info, n_sample):
         if self.root.exists():
             raise FileExistsError("Directory already exists")
@@ -73,6 +92,8 @@ class HistoryMatching:
 
 
     def prepare_case(self, config):
+        if "mode" in config:
+            self.set_mode(config["mode"])
         self.prep_case.sensitivity_emulation(n_cpus=config['n_cpus'])
         self.load_case()
         for level in config['threshold_levels']:
@@ -122,9 +143,10 @@ class HistoryMatching:
 
     def visualize_check(self, yname):
         y_emu_norm = pd.read_csv(self.root / f"y_emu/gp_mean_std_{yname}.csv", index_col=0)
-        visualize_emulation(X_gcm_norm = self.ppe_para_norm, X_emu = self.p_emu, y_gcm = self.data_ppe[yname], y_emu_norm = y_emu_norm, 
-                            para_inds = self.meta[yname], tf_mask = self.tf_masks[yname], 
+        fig = visualize_emulation(X_gcm_norm = self.ppe_para_norm, X_emu = self.p_emu, y_gcm = self.data_ppe[yname], y_emu_norm = y_emu_norm,
+                            para_inds = self.meta[yname], tf_mask = self.tf_masks[yname],
                             para_nm = self.para_nm, obs = self.data_obs[yname])
+        self._finalize_figure(fig, f"visualize_check_{yname}")
 
 
     def drop_by_name(self, var_to_exclude):
@@ -427,3 +449,4 @@ class HistoryMatching:
             ax.axis("off")
         axes[0,0].legend()
         fig.tight_layout()
+        self._finalize_figure(fig, "compare_with_original")

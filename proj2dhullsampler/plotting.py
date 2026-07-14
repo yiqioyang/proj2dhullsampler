@@ -123,7 +123,8 @@ def visualize_emulation(X_gcm_norm, X_emu, y_gcm, y_emu_norm, para_inds, tf_mask
     xy_emu_sub = xy_emu[tf_mask]
 
 
-    xy_emu = xy_emu.sample(5000)
+    if xy_emu.shape[0] > 5000:
+        xy_emu = xy_emu.sample(5000)
     if xy_emu_sub.shape[0] > 5000:
         xy_emu_sub = xy_emu_sub.sample(5000)
             
@@ -152,5 +153,6 @@ def visualize_emulation(X_gcm_norm, X_emu, y_gcm, y_emu_norm, para_inds, tf_mask
     ax2.scatter(X_gcm_norm.iloc[:,para_inds[1]], y_gcm)
     ax2.axhline(obs)
     ax2.set_xlabel(para_nm[para_inds[1]])
-    plt.show()
+
+    return fig
 
