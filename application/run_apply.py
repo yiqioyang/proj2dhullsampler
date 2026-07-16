@@ -117,24 +117,50 @@ def _run_pipeline(config, mode, working_dir, case_name, log_file_box):
         _start_diagnostics_log(case_root, log_file_box)
 
     paths = config["data_paths"]
-    obs_nc = xr.open_dataset(paths["obs_nc"])
-    obs_tab = pd.read_csv(paths["obs_tab"], index_col=0).squeeze("columns")
+    #########
+    if paths["obs_nc"] is not None:
+        obs_nc = xr.open_dataset(paths["obs_nc"])
+    else:
+        obs_nc = None
+
+    if paths["obs_tab"] is not None:
+        obs_tab = pd.read_csv(paths["obs_tab"], index_col=0).squeeze("columns")
+    else:
+        obs_tab = None
+    
     para = pd.read_csv(paths["para"], index_col=0)
-    ppe_nc = xr.open_dataset(paths["ppe_nc"])
-    ppe_tab = pd.read_csv(paths["ppe_tab"], index_col=0)
+    
+    if paths["ppe_nc"] is not None:
+        ppe_nc = xr.open_dataset(paths["ppe_nc"])
+    else:
+        ppe_nc = None
 
-    lb = config["lat_bins"]
-    lat_bins = np.arange(lb["start"], lb["stop"], lb["step"])
-
+    if paths["ppe_tab"] is not None:
+        ppe_tab = pd.read_csv(paths["ppe_tab"], index_col=0)
+    else:   
+        ppe_tab = None
+    
+    if config["lat_bins"] is not None:
+        lb = config["lat_bins"]
+        lat_bins = np.arange(lb["start"], lb["stop"], lb["step"])
+    else:
+        lat_bins = None
     # Column order matters: local_process() joins row.astype(str) (nm, lat_min, lat_max,
     # lon_min, lon_max) to build diagnostic names like "local_PRECT_4_7_1_359", so the
     # manual_regions entries in the config must list keys in that exact order.
-    manul_ppe_info = pd.DataFrame(
-        config["manual_regions"],
-        columns=["nm", "lat_min", "lat_max", "lon_min", "lon_max"],
-    )
 
-    obs_dict = config["obs_dict"]
+    if config["manual_regions"] is not None:
+        manul_ppe_info = pd.DataFrame(
+            config["manual_regions"],
+            columns=["nm", "lat_min", "lat_max", "lon_min", "lon_max"],
+        )
+    else:
+        manul_ppe_info = None
+
+    if config["obs_dict"] is not None:
+        obs_dict = config["obs_dict"]
+    else:
+        obs_dict = None
 
     # n_cpus/max_workers fall back to the job's actual CPU allocation when left
     # out of the config, so a PBS/Slurm resource request doesn't also have to be

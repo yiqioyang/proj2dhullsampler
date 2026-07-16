@@ -1,0 +1,36 @@
+{
+  "mode": "python",
+  "working_dir": "/glade/work/qingyuany/repo_data/",
+  "case_name": "linear_test1",
+  "result_name": "sample1",
+
+  "data_paths": {
+    "obs_nc": null,
+    "obs_tab": "/glade/work/qingyuany/cliffnotes/linear_full_n400_p5_o20_nsp2_nso5_sm3/y_true.csv",
+    "para": "/glade/work/qingyuany/cliffnotes/linear_full_n400_p5_o20_nsp2_nso5_sm3/X.csv",
+    "ppe_nc": null,
+    "ppe_tab": "/glade/work/qingyuany/cliffnotes/linear_full_n400_p5_o20_nsp2_nso5_sm3/Y.csv"
+  },
+
+  "obs_dict": null,
+
+  "lat_bins": null,
+
+  "manual_regions": null,
+
+  "n_sample": 1000000,
+
+  "prepare_case": {"n_cpus": 4, "threshold_levels": [2.0]},
+  "threshold_level": 2.0,
+  "visualize_check_vars": [],
+
+  "vars_to_drop": [],
+  "n_survive_threshold": 50000,
+  "n_survive_threshold_2d": 50000,
+  "max_workers": 6,
+  "n_pts": 50000,
+  "n_threshold": 5000,
+  "sample_threshold": 1000000000,
+  "n_max": 1000,
+  "top_n": 100
+}
