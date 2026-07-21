@@ -17,6 +17,9 @@ proj2dhullsampler/
 ├── proj2dhullsampler/
 │   ├── prep_class.py
 │   ├── hm_class.py
+│   ├── pipeline.py       # build_case(): shared config-driven setup used by
+│   │                     # both run_apply.py and apply.ipynb
+│   ├── run_apply.py      # notebook-free, config-driven script
 │   ├── sampling_functions.py
 │   ├── preprocess.py
 │   ├── plotting.py
@@ -26,7 +29,6 @@ proj2dhullsampler/
 ├── application/
 │   ├── apply.ipynb        # interactive, notebook-mode walkthrough
 │   ├── apply_config.json  # example config for run_apply.py
-│   ├── run_apply.py       # notebook-free, config-driven script
 │   ├── submit_apply.pbs   # PBS job template for Casper/Derecho
 │   ├── implementation.ipynb
 │   └── prepare.ipynb
@@ -146,7 +148,7 @@ Example (mirrors the order used in `application/apply.ipynb`):
 ```python
 hm.drop_by_name(["local_PRECT_4_7_1_359"])   # drop diagnostics by name prefix
 hm.drop_by_n_survive(n_survive=50)           # drop diagnostics that are always/rarely satisfied
-hm.remove_var2d_auto(overlapping_threshold=10_000)  # resolve non-overlapping parameter-pair groups
+hm.remove_var2d_auto(overlapping_threshold=10_000, added_num=100)  # resolve non-overlapping parameter-pair groups
 hm.drop_by_nvar_per_pair(n_var_thre=1)       # optional: drop pairs backed by too few diagnostics
 
 hm.prepare_for_sampling(
@@ -168,10 +170,19 @@ hm.compare_with_original()  # optional: sanity-check sampled vs. original PPE pa
 ```
 
 `remove_var2d_auto` calls `group_para_climatology` (grouping diagnostics by
-sensitive parameter pair) and `shuffle_vars` (checking overlap within each
-group) internally and iterates until no non-overlapping groups remain, or
-until `no_iter` iterations are exhausted. Call `group_para_climatology`
-directly only if you need the grouping without the overlap-resolution loop.
+sensitive parameter pair) and `shuffle_vars` (checking pairwise overlap within
+each group) internally and iterates until no non-overlapping groups remain.
+On each iteration it drops the diagnostic most implicated among variable
+pairs whose overlap falls below a pairwise threshold (which starts equal to
+`overlapping_threshold`). If a flagged group's *combined* intersection is
+below `overlapping_threshold` but every individual pair within it is not
+(a 3+-way interaction effect the pairwise check alone can't see), no pair
+qualifies that iteration; the pairwise threshold is then relaxed by
+`added_num` and the same group is re-evaluated on the next iteration, until
+something qualifies. If `no_iter` iterations are exhausted with groups still
+unresolved, it raises `ValueError` rather than returning silently. Call
+`group_para_climatology` directly only if you need the grouping without the
+overlap-resolution loop.
 
 The final saved outputs are written under `case_a/output/`, including:
 
@@ -203,20 +214,27 @@ stdout regardless of mode.
 
 ## Running without a notebook
 
-`application/run_apply.py` replays the same workflow as `application/apply.ipynb`
-as a plain script, driven entirely by a JSON config file (see
-`application/apply_config.json` for a fully worked example, including data
-paths, `obs_dict`, `lat_bins`, manually selected regions, thresholds, and
-`mode`):
+`proj2dhullsampler/run_apply.py` replays the same workflow as
+`application/apply.ipynb` as a plain script, driven entirely by a JSON config
+file (see `application/apply_config.json` for a fully worked example,
+including data paths, `obs_dict`, `lat_bins`, manually selected regions,
+thresholds, and `mode`):
 
 ```bash
-python application/run_apply.py --config application/apply_config.json
+python proj2dhullsampler/run_apply.py --config application/apply_config.json
 ```
 
-If the case directory doesn't exist yet, the script creates and prepares it
-(equivalent to `create_case` + `prepare_case`); if it already exists, the
-script loads it instead of re-running the (expensive) emulator training. When
-`config["mode"]` is `"python"`, the script also:
+The data-loading and create-or-load-case logic (everything through
+`load_mask`) lives in `proj2dhullsampler/pipeline.py`'s `build_case(config,
+mode)`, which both `run_apply.py` and `apply.ipynb` call, so the two stay in
+sync: a config change only needs to be made once. `run_apply.py` itself
+handles only the CLI-specific parts (argument parsing, the batch diagnostics
+log, and the drop/sample/save steps that follow `build_case`).
+
+If the case directory doesn't exist yet, `build_case` creates and prepares it
+(equivalent to `create_case` + `prepare_case`); if it already exists, it
+loads it instead of re-running the (expensive) emulator training. When
+`config["mode"]` is `"python"`, `run_apply.py` also:
 
 - switches matplotlib to the non-interactive `Agg` backend, since there's no
   display to show figures on,
@@ -289,6 +307,6 @@ pytest
 
 - The documented notebooks are `application/prepare.ipynb` and
   `application/implementation.ipynb`; `application/apply.ipynb` and
-  `application/run_apply.py` cover the workflow described above.
+  `proj2dhullsampler/run_apply.py` cover the workflow described above.
 - Most geometry operations assume parameters have been normalized to the
   `[0, 1]` range before hull construction and sampling.

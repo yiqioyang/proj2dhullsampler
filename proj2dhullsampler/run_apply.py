@@ -15,7 +15,6 @@ and all print() output from the pipeline is additionally teed to
 
 import argparse
 import json
-import os
 import sys
 from pathlib import Path
 
@@ -23,19 +22,6 @@ from pathlib import Path
 def load_config(config_path):
     with open(config_path) as f:
         return json.load(f)
-
-
-def _default_worker_count():
-    """CPUs actually available to this process.
-
-    Prefers sched_getaffinity, which reflects the cgroup allocation a PBS/Slurm
-    job gets (unlike os.cpu_count(), which reports the whole node's core count
-    regardless of what the job was actually granted).
-    """
-    try:
-        return len(os.sched_getaffinity(0))
-    except AttributeError:
-        return os.cpu_count() or 1
 
 
 class _Tee:
@@ -104,11 +90,7 @@ def _run(config, mode, working_dir, case_name):
 
 
 def _run_pipeline(config, mode, working_dir, case_name, log_file_box):
-    import numpy as np
-    import pandas as pd
-    import xarray as xr
-
-    from proj2dhullsampler import HistoryMatching
+    from proj2dhullsampler.pipeline import build_case, default_worker_count
 
     case_root = working_dir / case_name
     case_existed = case_root.exists()
@@ -116,92 +98,25 @@ def _run_pipeline(config, mode, working_dir, case_name, log_file_box):
     if mode == "python" and case_existed:
         _start_diagnostics_log(case_root, log_file_box)
 
-    paths = config["data_paths"]
-    #########
-    if paths["obs_nc"] is not None:
-        obs_nc = xr.open_dataset(paths["obs_nc"])
-    else:
-        obs_nc = None
+    on_created = None
+    if mode == "python":
+        # Only safe to start the log once create_case() has made case_root -
+        # doing it earlier would make HistoryMatching.create_case()'s own
+        # "does this case already exist" check see a directory that we
+        # ourselves made.
+        on_created = lambda test_case: _start_diagnostics_log(case_root, log_file_box)
 
-    if paths["obs_tab"] is not None:
-        obs_tab = pd.read_csv(paths["obs_tab"], index_col=0).squeeze("columns")
-    else:
-        obs_tab = None
-    
-    para = pd.read_csv(paths["para"], index_col=0)
-    
-    if paths["ppe_nc"] is not None:
-        ppe_nc = xr.open_dataset(paths["ppe_nc"])
-    else:
-        ppe_nc = None
+    test_case = build_case(config, mode=mode, on_created=on_created)
 
-    if paths["ppe_tab"] is not None:
-        ppe_tab = pd.read_csv(paths["ppe_tab"], index_col=0)
-    else:   
-        ppe_tab = None
-    
-    if config["lat_bins"] is not None:
-        lb = config["lat_bins"]
-        lat_bins = np.arange(lb["start"], lb["stop"], lb["step"])
-    else:
-        lat_bins = None
-    # Column order matters: local_process() joins row.astype(str) (nm, lat_min, lat_max,
-    # lon_min, lon_max) to build diagnostic names like "local_PRECT_4_7_1_359", so the
-    # manual_regions entries in the config must list keys in that exact order.
-
-    if config["manual_regions"] is not None:
-        manul_ppe_info = pd.DataFrame(
-            config["manual_regions"],
-            columns=["nm", "lat_min", "lat_max", "lon_min", "lon_max"],
-        )
-    else:
-        manul_ppe_info = None
-
-    if config["obs_dict"] is not None:
-        obs_dict = config["obs_dict"]
-    else:
-        obs_dict = None
-
-    # n_cpus/max_workers fall back to the job's actual CPU allocation when left
-    # out of the config, so a PBS/Slurm resource request doesn't also have to be
-    # duplicated into the JSON by hand. Explicit config values always win.
-    default_workers = _default_worker_count()
-    prepare_case_config = dict(config.get("prepare_case", {}))
-    prepare_case_config.setdefault("n_cpus", default_workers)
-    max_workers = config.get("max_workers", default_workers)
-    print(
-        f"Worker counts: prepare_case.n_cpus={prepare_case_config['n_cpus']}, "
-        f"max_workers={max_workers} (job allocation reports {default_workers} "
-        f"CPUs available; explicit config values, if set, take precedence)"
-    )
-
-    test_case = HistoryMatching(working_dir, case_name, mode=mode)
-
-    if not case_existed:
-        print("Case directory does not exist yet; creating and preparing it.")
-        test_case.create_case(
-            para, [ppe_tab, obs_tab], ppe_nc, obs_nc, obs_dict,
-            lat_bins, manul_ppe_info, n_sample=config["n_sample"],
-        )
-        # Only safe to start the log now: create_case() just made case_root, and
-        # doing this earlier would break its own "does this case exist" check.
-        if mode == "python":
-            _start_diagnostics_log(case_root, log_file_box)
-
-        prepare_case_config["mode"] = mode
-        test_case.prepare_case(prepare_case_config)
-        test_case.load_mask(threshold_level=config["threshold_level"])
-
-        for yname in config.get("visualize_check_vars", []):
-            test_case.visualize_check(yname)
-    else:
-        print("Case directory already exists; loading it instead of re-preparing.")
-        test_case.load_case()
-        test_case.load_mask(threshold_level=config["threshold_level"])
+    # max_workers falls back to the job's actual CPU allocation when left out
+    # of the config, so a PBS/Slurm resource request doesn't also have to be
+    # duplicated into the JSON by hand. An explicit config value always wins.
+    max_workers = config.get("max_workers", default_worker_count())
+    print(f"max_workers={max_workers}")
 
     test_case.drop_by_name(config["vars_to_drop"])
     test_case.drop_by_n_survive(config["n_survive_threshold"])
-    test_case.remove_var2d_auto(config["n_survive_threshold_2d"])
+    test_case.remove_var2d_auto(config["n_survive_threshold_2d"], added_num = config['added_number_for_pairs'])
     test_case.drop_by_nvar_per_pair(config['n_var_thre'])
 
     test_case.prepare_for_sampling(max_workers=max_workers)

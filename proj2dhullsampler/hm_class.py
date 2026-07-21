@@ -248,8 +248,8 @@ class HistoryMatching:
         return summary_table, len(self.paras_vars_0)
 
     
-    def remove_var2d_auto(self, overlapping_threshold, no_iter = 100):
-    
+    def remove_var2d_auto(self, overlapping_threshold, no_iter = 1000, added_num = 1000):
+        pair_wise_threshold = overlapping_threshold
         for i in range(no_iter):
 
             self.group_para_climatology(overlapping_threshold)
@@ -260,22 +260,27 @@ class HistoryMatching:
 
             if (no_over_count > 0) & (i < no_iter -1) & (i >= 0):
                 c_s = pd.concat(list(summary2d.values()), axis = 0).sort_values(by='count')
-                c_s = c_s[c_s['count'] < overlapping_threshold]
                 if i == 0:
                     c_s.to_csv(self.root / 'output/diagnostic_2d_structural_error.csv')
 
-                no_overlap_2d_var = list(c_s[['var1', 'var2']].stack().value_counts()[:1].index) 
-                #no_overlap_2d_vars = no_overlap_2d_vars.append(no_overlap_2d_var[0])
-                print(f'Drop variable {no_overlap_2d_var}')
-                self.drop_no_overlap2d_vars(no_overlap_2d_var)
+                under_threshold = c_s[c_s['count'] < pair_wise_threshold]
+                if len(under_threshold) > 0:
+                    no_overlap_2d_var = list(under_threshold[['var1', 'var2']].stack().value_counts()[:1].index)
+                    print(f'Drop variable {no_overlap_2d_var}')
+                    self.drop_no_overlap2d_vars(no_overlap_2d_var)
 
+                else:
+                    print('Need to increase threshold to exclude more samples')
+                    pair_wise_threshold = pair_wise_threshold + added_num
+
+                
             if (no_over_count == 0) & (i < no_iter -1) & (i > 0): 
                 print('Finished dropping variables')
                 self.group_para_climatology(overlapping_threshold)
                 return 
             
             if (no_over_count > 0) & (i == no_iter -1):
-                print('Failed to resolve non-overlapping')
+                raise ValueError('Not enough of iterations to exclude the variables')
 
     
 

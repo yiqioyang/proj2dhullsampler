@@ -38,6 +38,7 @@
   "vars_to_drop": ["local_PRECT_4_7_1_359"],
   "n_survive_threshold": 50000,
   "n_survive_threshold_2d": 50000,
+  "added_number_for_pairs": 100, 
   "n_var_thre": 1,
   "max_workers": 6,
   "n_pts": 50000,

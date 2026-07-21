@@ -1,15 +1,15 @@
 {
   "mode": "python",
   "working_dir": "/glade/work/qingyuany/repo_data/",
-  "case_name": "linear_overlapping_blocks_n300_p10_o20_pg0-1-2-1-2-3-4-5-6-7-8-9_ogs4-6-10_sm3_bs0_el0-m1_ss0p5",
+  "case_name": "linear_triu_n500_p15_o20_nsp2_nso5",
   "result_name": "sample1",
 
   "data_paths": {
     "obs_nc": null,
-    "obs_tab": "/glade/work/qingyuany/cliffnotes/linear_overlapping_blocks_n300_p10_o20_pg0-1-2-1-2-3-4-5-6-7-8-9_ogs4-6-10_sm3_bs0_el0-m1_ss0p5/y_true.csv",
-    "para": "/glade/work/qingyuany/cliffnotes/linear_overlapping_blocks_n300_p10_o20_pg0-1-2-1-2-3-4-5-6-7-8-9_ogs4-6-10_sm3_bs0_el0-m1_ss0p5/X.csv",
+    "obs_tab": "/glade/work/qingyuany/cliffnotes/linear_triu_n500_p15_o20_nsp2_nso5/y_true.csv",
+    "para": "/glade/work/qingyuany/cliffnotes/linear_triu_n500_p15_o20_nsp2_nso5/X.csv",
     "ppe_nc": null,
-    "ppe_tab": "/glade/work/qingyuany/cliffnotes/linear_overlapping_blocks_n300_p10_o20_pg0-1-2-1-2-3-4-5-6-7-8-9_ogs4-6-10_sm3_bs0_el0-m1_ss0p5/Y.csv"
+    "ppe_tab": "/glade/work/qingyuany/cliffnotes/linear_triu_n500_p15_o20_nsp2_nso5/Y.csv"
   },
 
   "obs_dict": null,
@@ -27,6 +27,7 @@
   "vars_to_drop": [],
   "n_survive_threshold": 5000,
   "n_survive_threshold_2d": 5000,
+  "added_number_for_pairs": 100, 
   "max_workers": 8,
   "n_var_thre": 1,
   "n_pts": 50000,
