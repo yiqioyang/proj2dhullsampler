@@ -421,7 +421,7 @@ class HistoryMatching:
 
 
 
-    def compare_with_original(self, df_vline=None, bins=30, density=True):
+    def compare_with_original(self, bins=30, density=True):
 
         dfs = [self.ppe_para, self.results.realscale_samples]
 
@@ -430,19 +430,13 @@ class HistoryMatching:
         nrows = (len(cols) + ncols - 1) // ncols
         fig, axes = plt.subplots(nrows, ncols, figsize=(4*ncols, 3*nrows), squeeze=False)
 
-        df_vline = df_vline 
+
 
         for ax, c in zip(axes.ravel(), cols):
             # histograms
             for i, df in enumerate(dfs):
                 ax.hist(df[c].dropna(), bins=bins, density=density, alpha=0.4, label=f"hist{i}")
             # vlines
-            if df_vline is not None:
-                for j, df in enumerate(df_vline):
-                    vals = df[c].dropna()
-                    for k, v in enumerate(vals):
-                        ax.axvline(v, alpha=0.7, lw=1.5, linestyle="--",
-                                label=f"vline{j}" if k == 0 else None)
             ax.set_title(c)
 
         for ax in axes.ravel()[len(cols):]:
