@@ -28,6 +28,7 @@
   "n_survive_threshold": 5000,
   "n_survive_threshold_2d": 5000,
   "max_workers": 8,
+  "n_var_thre": 1,
   "n_pts": 50000,
   "n_threshold": 5000,
   "sample_threshold": 1000000000,
