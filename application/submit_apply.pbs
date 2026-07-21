@@ -6,7 +6,7 @@
 #PBS -N proj2dhullsampler_apply
 #PBS -A P93300313
 #PBS -q casper
-#PBS -l select=1:ncpus=4:mem=64GB
+#PBS -l select=1:ncpus=8:mem=128GB
 #PBS -l walltime=01:00:00
 #PBS -j oe
 #PBS -o proj.log
@@ -26,4 +26,6 @@ module load conda
 source /glade/u/apps/opt/conda/ncarbin/conda.sh
 
 conda activate /glade/work/qingyuany/conda-envs/ml_env
-python run_apply.py --config linear_simple_test_config.json
+#python run_apply.py --config linear_simple_test_config.json
+python run_apply.py --config apply_30_camml.json
+

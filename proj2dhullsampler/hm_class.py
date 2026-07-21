@@ -423,7 +423,7 @@ class HistoryMatching:
 
     def compare_with_original(self, df_vline=None, bins=30, density=True):
 
-        dfs = [self.ppe_para, self.results.realscale_samples.iloc[:self.ppe_para.shape[0],:]]
+        dfs = [self.ppe_para, self.results.realscale_samples]
 
         cols = dfs[0].columns
         ncols = 5
