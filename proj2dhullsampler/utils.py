@@ -25,7 +25,11 @@ import joblib
 #import plotly.graph_objects as go
 
 
-def gp_training_application(X, Y, y_name, X_emu, path, n_sens_p = 2, no_restart = 10):
+def emulator_validation(ypred_mean_validate, ypred_std_validate, ytrue_validate, threshold_scale):
+    count = ((ytrue_validate > ypred_mean_validate + threshold_scale * ypred_std_validate) | (ytrue_validate < ypred_mean_validate - threshold_scale * ypred_std_validate)).sum()
+    return count/ytrue_validate.shape[0]
+
+def gp_training_application(X, Y, y_name, X_emu, path, n_sens_p = 2, no_restart = 10, threshold_scale = 2.0):
     y = Y[y_name]
 
     if y.isna().any():
@@ -57,6 +61,10 @@ def gp_training_application(X, Y, y_name, X_emu, path, n_sens_p = 2, no_restart 
     joblib.dump(gp, path + "/python_obj/" + y_name + "_gpmodel.pkl")
 
     y_mean_emu, y_std_emu = gp.predict(X_emu.values[:,sel_para_ind], return_std=True)
+    y_mean_validate, y_std_validate = gp.predict(X.values[:,sel_para_ind], return_std=True)
+    outlier_ratio = emulator_validation(y_mean_validate, y_std_validate, y_norm, threshold_scale)
+
+
     y_mean_emu = y_mean_emu.reshape(-1, 1)
     y_std_emu = y_std_emu.reshape(-1, 1)
 
@@ -65,7 +73,7 @@ def gp_training_application(X, Y, y_name, X_emu, path, n_sens_p = 2, no_restart 
     y_mean_std_emu.to_csv(path + "/y_emu" + "/gp_mean_std_" + y_name + ".csv")
     
     
-    return ([y_name, sel_para_ind])
+    return ([y_name, sel_para_ind, outlier_ratio])
 
 
         

@@ -96,7 +96,7 @@ def build_case(config, mode="notebook", on_created=None):
         print("Case directory does not exist yet; creating and preparing it.")
         test_case.create_case(
             para, [ppe_tab, obs_tab], ppe_nc, obs_nc, obs_dict,
-            lat_bins, manul_ppe_info, n_sample=config["n_sample"],
+            lat_bins, manul_ppe_info, n_sample=config["n_sample"], threshold_scale =config['threshold_level'] 
         )
         if on_created is not None:
             on_created(test_case)

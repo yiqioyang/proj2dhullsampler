@@ -57,13 +57,13 @@ class HistoryMatching:
         else:
             plt.show()
 
-    def create_case(self, para, tabs, ppe, obs, obs_dict, lat_bins, manul_ppe_info, n_sample):
+    def create_case(self, para, tabs, ppe, obs, obs_dict, lat_bins, manul_ppe_info, n_sample, threshold_scale):
         if self.root.exists():
             raise FileExistsError("Directory already exists")
         
         else:
             print("Start creating new case")
-            prep_case = Prepare_Case(self.working_dir, self.case_name, para, tabs, ppe, obs, obs_dict, lat_bins, manul_ppe_info, n_sample)
+            prep_case = Prepare_Case(self.working_dir, self.case_name, para, tabs, ppe, obs, obs_dict, lat_bins, manul_ppe_info, n_sample, threshold_scale)
             self.prep_case = prep_case
             
 

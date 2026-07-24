@@ -43,7 +43,7 @@ class CaseDirectory:
 
 
 class Prepare_Case:
-    def __init__(self, working_dir, case_name, para, tabs, ppe, obs, obs_dict, lat_bins, manul_ppe_info, n_sample = 1000000):
+    def __init__(self, working_dir, case_name, para, tabs, ppe, obs, obs_dict, lat_bins, manul_ppe_info, n_sample = 1000000, threshold_scale = 2.5):
         
 
         para_range = para.max() - para.min()
@@ -62,7 +62,7 @@ class Prepare_Case:
         self.case_name = case_name
         self.case = CaseDirectory(working_dir, case_name)
         self.n_sample = n_sample
-
+        self.threshold_scale = threshold_scale
         #### Process ppe data
         ppe_data, obs_data = feature_builder(tabs, ppe, obs, obs_dict, lat_bins, manul_ppe_info)
         
@@ -102,7 +102,7 @@ class Prepare_Case:
         sampled_paras = xr.open_dataset(self.case.root / "sampled_parameters.nc").to_dataframe()
         
         results = Parallel(n_jobs=n_cpus)(
-                        delayed(gp_training_application)(self.data_gcm.para_norm, self.data_gcm.ppe_data, y_name, sampled_paras, path = str(self.case.root) + "/", n_sens_p=n_sens_p)
+                        delayed(gp_training_application)(self.data_gcm.para_norm, self.data_gcm.ppe_data, y_name, sampled_paras, path = str(self.case.root) + "/", n_sens_p=n_sens_p, threshold_scale = self.threshold_scale)
                         for y_name in list(self.data_gcm.ppe_data.columns)
                     )
 
@@ -112,8 +112,11 @@ class Prepare_Case:
         meta = pd.concat(list(meta_xy_dict.values()), axis = 1)
         meta.columns = list(meta_xy_dict.keys())
         self.meta = meta
+
+
+        validation_error_dict = pd.Series({pair[0]: pair[2] for pair in results if pair is not None})
         
         meta.to_csv(self.case.root / "meta.csv", index=True)
-        
+        validation_error_dict.to_csv(self.case.root / "validation_error_ratio.csv", index = True)
         
 
