@@ -77,7 +77,9 @@ class HistoryMatching:
             self.data_obs = pd.read_csv(self.root / 'tabs/obs_data.csv', index_col = 0).iloc[:, 0] #%xx        
             self.data_ppe = pd.read_csv(self.root / 'tabs/ppe_data.csv', index_col = 0)
             self.var_nm = list(self.data_ppe.columns) 
-
+            self.emulator_error_ratio = pd.read_csv(self.root / "validation_error_ratio.csv", index_col = 0)
+            print(type(self.emulator_error_ratio))
+            print(self.emulator_error_ratio)
             self.dropped_vars = EmulatedDataStorage()
             
             self.ppe_para_norm = self.ppe_para.copy()

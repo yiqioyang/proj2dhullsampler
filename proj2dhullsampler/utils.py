@@ -27,6 +27,7 @@ import joblib
 
 def emulator_validation(ypred_mean_validate, ypred_std_validate, ytrue_validate, threshold_scale):
     count = ((ytrue_validate > ypred_mean_validate + threshold_scale * ypred_std_validate) | (ytrue_validate < ypred_mean_validate - threshold_scale * ypred_std_validate)).sum()
+    print(f'{count} out of {ytrue_validate.shape[0]} samples are outside the range defined by the GP uncertainty and specified threshold. ')
     return count/ytrue_validate.shape[0]
 
 def gp_training_application(X, Y, y_name, X_emu, path, n_sens_p = 2, no_restart = 10, threshold_scale = 2.0):
