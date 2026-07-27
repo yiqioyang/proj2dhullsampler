@@ -117,6 +117,8 @@ def _run_pipeline(config, mode, working_dir, case_name, log_file_box):
     
 
     test_case.drop_by_name(config["vars_to_drop"])
+    test_case.drop_by_emulator_performance(config["emultor_error_ratio_threshold"])
+
     test_case.drop_by_n_survive(config["n_survive_threshold"])
     test_case.remove_var2d_auto(config["n_survive_threshold_2d"], added_num = config['added_number_for_pairs'])
     test_case.drop_by_nvar_per_pair(config['n_var_thre'])

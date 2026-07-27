@@ -27,5 +27,5 @@ source /glade/u/apps/opt/conda/ncarbin/conda.sh
 
 conda activate /glade/work/qingyuany/conda-envs/ml_env
 #python ../proj2dhullsampler/run_apply.py --config linear_simple_test_config.json
-python ../proj2dhullsampler/run_apply.py --config apply_30_camml.json
-
+#python ../proj2dhullsampler/run_apply.py --config apply_30_camml.json
+python ../proj2dhullsampler/run_apply.py --config apply_config.json

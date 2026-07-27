@@ -150,6 +150,13 @@ class HistoryMatching:
                             para_nm = self.para_nm, obs = self.data_obs[yname])
         self._finalize_figure(fig, f"visualize_check_{yname}")
 
+    def drop_by_emulator_performance(self, emultor_error_ratio_threshold):
+        vars_to_drop = list(self.emulator_error_ratio[self.emulator_error_ratio.iloc[:,0] > emultor_error_ratio_threshold].index)
+        self.tf_masks = self.tf_masks.drop(columns = vars_to_drop)
+        self.var_nm = list(self.tf_masks.columns)
+        self.dropped_vars.by_emulator_performance = vars_to_drop
+        print(f'Drop variables {vars_to_drop} based on emulator perfornace (error ratio of {emultor_error_ratio_threshold} as threshold)')
+        self.update_meta()
 
     def drop_by_name(self, var_to_exclude):
         var_to_drop = []
@@ -160,6 +167,7 @@ class HistoryMatching:
 
         self.var_nm = list(self.tf_masks.columns)
         self.dropped_vars.by_name = var_to_drop
+        print(f'Drop variables {var_to_drop} based on hand selection')
         self.update_meta()
         #xxx%self.specifications.drop_by_name = var_to_exclude
 
@@ -167,7 +175,8 @@ class HistoryMatching:
         survive_summary = self.tf_masks.sum(axis = 0)
         self.dropped_vars.useless = list(survive_summary[survive_summary == self.n_sample].index)
         self.dropped_vars.tight   = list(survive_summary[survive_summary < n_survive].index)
-
+        print(f'Drop variables {self.dropped_vars.useless} because they do not help constrain the parameters')
+        print(f'Drop variables {self.dropped_vars.tight} because they constrain the parmaeters too much')
         self.tf_masks = self.tf_masks.drop(columns = self.dropped_vars.useless + self.dropped_vars.tight)
         self.specifications.n_survive = n_survive
         self.var_nm = list(self.tf_masks.columns)
@@ -180,7 +189,7 @@ class HistoryMatching:
                 self.dropped_vars.too_few_vars.extend(v)
                 del self.paras_vars[k]
     
-
+        print(f'Drop variables {self.dropped_vars.too_few_vars} because when grouped together, they contribute to too little surviving ensemble members')
         self.tf_masks = self.tf_masks.drop(columns = self.dropped_vars.too_few_vars)
         self.var_nm = list(self.tf_masks.columns)
         self.specifications.n_var_thre_per_parapair = n_var_thre

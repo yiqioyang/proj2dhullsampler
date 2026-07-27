@@ -33,6 +33,7 @@
 
   "prepare_case": {"n_cpus": 4, "threshold_levels": [2.0]},
   "threshold_level": 2.0,
+  "emultor_error_ratio_threshold": 0.04,
   "visualize_check_vars": ["SWCF_zonal_-45to-15"],
 
   "vars_to_drop": ["local_PRECT_4_7_1_359"],
