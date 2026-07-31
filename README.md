@@ -267,6 +267,63 @@ whatever CPU count the job was actually granted (see "Worker counts" above)
 instead of requiring the PBS resource request and the JSON config to be kept
 in sync by hand.
 
+## Running a batch of cases (`cases/`)
+
+`cases/` drives `run_apply.py` over many cases at once from a single
+manifest, e.g. a parameter-recovery sweep with one case per
+`(training-set size, held-out member)` combination:
+
+```text
+cases/
+├── template_config.json   # shared config; only case_name/data_paths/working_dir vary per case
+├── make_configs.py        # expands a manifest.csv into one <case>.json per row
+├── submit_case.pbs        # PBS template for a single case (qsub'd once per case by submit_all.sh)
+└── submit_all.sh          # submits one PBS job per generated <case>.json in a target directory
+```
+
+1. **Generate per-case configs from a manifest.** `make_configs.py` reads a
+   `manifest.csv` with `n_train, obs_ind, run_dir` columns and, for each row,
+   copies `template_config.json` and overrides `case_name` (the `run_dir`
+   basename, e.g. `n30_obs40`), `working_dir`, and `data_paths` (pointed at
+   `<run_dir>/obs_truth.nc`, `<run_dir>/para.csv`, `<run_dir>/ppe.nc`). Every
+   other field — thresholds, `obs_dict`, `lat_bins`, manual regions,
+   `emultor_error_ratio_threshold`, etc. — comes from the template unchanged,
+   so all cases from one manifest share the same settings:
+
+   ```bash
+   python cases/make_configs.py \
+       --manifest /path/to/manifest.csv \
+       --working-dir /path/to/results/ \
+       --out-dir cases/threshold25
+   ```
+
+   `--manifest`, `--working-dir`, and `--out-dir` all have defaults baked
+   into the script (see its docstring); pass them explicitly to point at a
+   different manifest or to keep separate batches (e.g. different
+   `threshold_level` values) in separate output directories, since the
+   directory name itself carries no meaning to the tooling — it only matters
+   if you edit `template_config.json` (e.g. bump `threshold_level`) between
+   `make_configs.py` runs and use a different `--out-dir` each time, as was
+   done for `cases/threshold20` vs. `cases/threshold25`.
+
+2. **Submit one PBS job per generated config.**
+
+   ```bash
+   bash cases/submit_all.sh [target_dir]
+   ```
+
+   `target_dir` defaults to `cases/` itself; pass e.g. `cases/threshold25` to
+   submit that batch instead. For every `<target_dir>/n*_obs*.json`, it
+   `qsub`s `submit_case.pbs` (which just calls `run_apply.py --config
+   $CONFIG`), naming the job and its log after the config's basename and
+   writing the log to `<target_dir>/logs/<name>.log`.
+
+`template_config.json` must stay in sync with whatever keys `run_apply.py`
+requires (see `application/apply_config.json` for the full set) — a key
+missing from the template will fail every case generated from it, and since
+that failure happens inside `run_apply.py` after case creation/loading, it
+can surface only after the expensive emulator-training step has already run.
+
 ## Public API
 
 The package exposes one public class:
