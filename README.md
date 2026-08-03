@@ -4,7 +4,7 @@
 history matching of spatial climate diagnostics. It includes utilities for:
 
 - preparing observational and PPE-derived feature tables
-- training and applying Gaussian process emulators
+- training and applying Gaussian process emulators based on the most two sensitive parameters
 - building boolean masks of acceptable simulations
 - grouping diagnostics by sensitive parameter pairs
 - constructing alpha-shape hulls in normalized parameter space
@@ -29,9 +29,7 @@ proj2dhullsampler/
 ├── application/
 │   ├── apply.ipynb        # interactive, notebook-mode walkthrough
 │   ├── apply_config.json  # example config for run_apply.py
-│   ├── submit_apply.pbs   # PBS job template for Casper/Derecho
-│   ├── implementation.ipynb
-│   └── prepare.ipynb
+│   └── submit_apply.pbs   # PBS job template for Casper/Derecho
 ├── tests/
 ├── pyproject.toml
 └── README.md
