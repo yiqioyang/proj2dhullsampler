@@ -25,7 +25,12 @@ import joblib
 #import plotly.graph_objects as go
 
 
-def gp_training_application(X, Y, y_name, X_emu, path, n_sens_p = 2, no_restart = 10):
+def emulator_validation(ypred_mean_validate, ypred_std_validate, ytrue_validate, threshold_scale):
+    count = ((ytrue_validate > ypred_mean_validate + threshold_scale * ypred_std_validate) | (ytrue_validate < ypred_mean_validate - threshold_scale * ypred_std_validate)).sum()
+    print(f'{count} out of {ytrue_validate.shape[0]} samples are outside the range defined by the GP uncertainty and specified threshold. ')
+    return count/ytrue_validate.shape[0]
+
+def gp_training_application(X, Y, y_name, X_emu, path, n_sens_p = 2, no_restart = 10, threshold_scale = 2.0):
     y = Y[y_name]
 
     if y.isna().any():
@@ -49,7 +54,7 @@ def gp_training_application(X, Y, y_name, X_emu, path, n_sens_p = 2, no_restart 
     sel_para_ind = list(sage1d_temp.index[:n_sens_p])
     
 
-    kernel = C(1.0, (1e-3, 0.8)) * Matern(length_scale=0.001, nu=2.5, length_scale_bounds=(0.1, 3)) + WhiteKernel(noise_level=0.5, noise_level_bounds=(0.01, 0.9))
+    kernel = C(1.0, (1e-3, 0.8)) * Matern(length_scale=0.2, nu=2.5, length_scale_bounds=(0.1, 3)) + WhiteKernel(noise_level=0.5, noise_level_bounds=(0.01, 0.9))
     gp = GaussianProcessRegressor(kernel=kernel, n_restarts_optimizer= no_restart, normalize_y=True)
     
     gp.fit(X.values[:,sel_para_ind], y_norm.values)
@@ -57,6 +62,10 @@ def gp_training_application(X, Y, y_name, X_emu, path, n_sens_p = 2, no_restart 
     joblib.dump(gp, path + "/python_obj/" + y_name + "_gpmodel.pkl")
 
     y_mean_emu, y_std_emu = gp.predict(X_emu.values[:,sel_para_ind], return_std=True)
+    y_mean_validate, y_std_validate = gp.predict(X.values[:,sel_para_ind], return_std=True)
+    outlier_ratio = emulator_validation(y_mean_validate, y_std_validate, y_norm, threshold_scale)
+
+
     y_mean_emu = y_mean_emu.reshape(-1, 1)
     y_std_emu = y_std_emu.reshape(-1, 1)
 
@@ -65,7 +74,7 @@ def gp_training_application(X, Y, y_name, X_emu, path, n_sens_p = 2, no_restart 
     y_mean_std_emu.to_csv(path + "/y_emu" + "/gp_mean_std_" + y_name + ".csv")
     
     
-    return ([y_name, sel_para_ind])
+    return ([y_name, sel_para_ind, outlier_ratio])
 
 
         
@@ -111,37 +120,6 @@ def fit_all_gp_models_1d(y, X, len1d = 0.4):
     
     return top_10
 
-
-
-
-def group_para_climatology(df, tf_masks, meta, vars = np.NAN, threshold = 5000):
-    
-    if isinstance(vars, list):
-       vars = vars
-    else:
-        vars = list(tf_masks.columns)
-
-
-    n_para = meta.shape[0]
-
-    paras_vars = {}
-
-    for c in vars: 
-        para_inds = meta[c]
-        para_nms = sorted(list(df.columns[para_inds]))
-        paras_vars.setdefault(tuple(para_nms), []).append(c)
-        
-
-    strt_paras_vars = {}
-    surv_paras_vars = {}
-    for k, v in paras_vars.items():
-
-        if tf_masks[v].all(axis = 1).sum() < threshold :
-            strt_paras_vars[k] = v
-        else:
-            surv_paras_vars[k] = v
-
-    return paras_vars, strt_paras_vars, surv_paras_vars
 
 
 

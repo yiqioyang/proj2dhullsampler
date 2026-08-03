@@ -32,19 +32,38 @@ class EmulatedDataStorage:
         pass
 
 class HistoryMatching:
-    def __init__(self, working_dir, case_name):
+    def __init__(self, working_dir, case_name, mode="notebook"):
         self.working_dir = working_dir
         self.case_name = case_name
         self.root = Path(working_dir) / case_name
+        self.set_mode(mode)
 
-        
-    def create_case(self, para, tabs, ppe, obs, obs_dict, lat_bins, manul_ppe_info, n_sample):
+    def set_mode(self, mode):
+        if mode not in ("notebook", "python"):
+            raise ValueError(f"mode must be 'notebook' or 'python', got {mode!r}")
+        self.mode = mode
+
+    @property
+    def diagnostics_dir(self):
+        d = self.root / "diagnostics"
+        d.mkdir(parents=True, exist_ok=True)
+        return d
+
+    def _finalize_figure(self, fig, name):
+        """Show the figure inline (notebook mode) or save it to disk and close it (python mode)."""
+        if self.mode == "python":
+            fig.savefig(self.diagnostics_dir / f"{name}.png", dpi=150, bbox_inches="tight")
+            plt.close(fig)
+        else:
+            plt.show()
+
+    def create_case(self, para, tabs, ppe, obs, obs_dict, lat_bins, manul_ppe_info, n_sample, threshold_scale):
         if self.root.exists():
             raise FileExistsError("Directory already exists")
         
         else:
             print("Start creating new case")
-            prep_case = Prepare_Case(self.working_dir, self.case_name, para, tabs, ppe, obs, obs_dict, lat_bins, manul_ppe_info, n_sample)
+            prep_case = Prepare_Case(self.working_dir, self.case_name, para, tabs, ppe, obs, obs_dict, lat_bins, manul_ppe_info, n_sample, threshold_scale)
             self.prep_case = prep_case
             
 
@@ -58,7 +77,9 @@ class HistoryMatching:
             self.data_obs = pd.read_csv(self.root / 'tabs/obs_data.csv', index_col = 0).iloc[:, 0] #%xx        
             self.data_ppe = pd.read_csv(self.root / 'tabs/ppe_data.csv', index_col = 0)
             self.var_nm = list(self.data_ppe.columns) 
-
+            self.emulator_error_ratio = pd.read_csv(self.root / "validation_error_ratio.csv", index_col = 0)
+            print(type(self.emulator_error_ratio))
+            print(self.emulator_error_ratio)
             self.dropped_vars = EmulatedDataStorage()
             
             self.ppe_para_norm = self.ppe_para.copy()
@@ -73,6 +94,8 @@ class HistoryMatching:
 
 
     def prepare_case(self, config):
+        if "mode" in config:
+            self.set_mode(config["mode"])
         self.prep_case.sensitivity_emulation(n_cpus=config['n_cpus'])
         self.load_case()
         for level in config['threshold_levels']:
@@ -122,10 +145,18 @@ class HistoryMatching:
 
     def visualize_check(self, yname):
         y_emu_norm = pd.read_csv(self.root / f"y_emu/gp_mean_std_{yname}.csv", index_col=0)
-        visualize_emulation(X_gcm_norm = self.ppe_para_norm, X_emu = self.p_emu, y_gcm = self.data_ppe[yname], y_emu_norm = y_emu_norm, 
-                            para_inds = self.meta[yname], tf_mask = self.tf_masks[yname], 
+        fig = visualize_emulation(X_gcm_norm = self.ppe_para_norm, X_emu = self.p_emu, y_gcm = self.data_ppe[yname], y_emu_norm = y_emu_norm,
+                            para_inds = self.meta[yname], tf_mask = self.tf_masks[yname],
                             para_nm = self.para_nm, obs = self.data_obs[yname])
+        self._finalize_figure(fig, f"visualize_check_{yname}")
 
+    def drop_by_emulator_performance(self, emultor_error_ratio_threshold):
+        vars_to_drop = list(self.emulator_error_ratio[self.emulator_error_ratio.iloc[:,0] > emultor_error_ratio_threshold].index)
+        self.tf_masks = self.tf_masks.drop(columns = vars_to_drop)
+        self.var_nm = list(self.tf_masks.columns)
+        self.dropped_vars.by_emulator_performance = vars_to_drop
+        print(f'Drop variables {vars_to_drop} based on emulator perfornace (error ratio of {emultor_error_ratio_threshold} as threshold)')
+        self.update_meta()
 
     def drop_by_name(self, var_to_exclude):
         var_to_drop = []
@@ -136,6 +167,7 @@ class HistoryMatching:
 
         self.var_nm = list(self.tf_masks.columns)
         self.dropped_vars.by_name = var_to_drop
+        print(f'Drop variables {var_to_drop} based on hand selection')
         self.update_meta()
         #xxx%self.specifications.drop_by_name = var_to_exclude
 
@@ -143,7 +175,8 @@ class HistoryMatching:
         survive_summary = self.tf_masks.sum(axis = 0)
         self.dropped_vars.useless = list(survive_summary[survive_summary == self.n_sample].index)
         self.dropped_vars.tight   = list(survive_summary[survive_summary < n_survive].index)
-
+        print(f'Drop variables {self.dropped_vars.useless} because they do not help constrain the parameters')
+        print(f'Drop variables {self.dropped_vars.tight} because they constrain the parmaeters too much')
         self.tf_masks = self.tf_masks.drop(columns = self.dropped_vars.useless + self.dropped_vars.tight)
         self.specifications.n_survive = n_survive
         self.var_nm = list(self.tf_masks.columns)
@@ -156,7 +189,7 @@ class HistoryMatching:
                 self.dropped_vars.too_few_vars.extend(v)
                 del self.paras_vars[k]
     
-
+        print(f'Drop variables {self.dropped_vars.too_few_vars} because when grouped together, they contribute to too little surviving ensemble members')
         self.tf_masks = self.tf_masks.drop(columns = self.dropped_vars.too_few_vars)
         self.var_nm = list(self.tf_masks.columns)
         self.specifications.n_var_thre_per_parapair = n_var_thre
@@ -226,8 +259,8 @@ class HistoryMatching:
         return summary_table, len(self.paras_vars_0)
 
     
-    def remove_var2d_auto(self, overlapping_threshold, no_iter = 100):
-    
+    def remove_var2d_auto(self, overlapping_threshold, no_iter = 1000, added_num = 1000):
+        pair_wise_threshold = overlapping_threshold
         for i in range(no_iter):
 
             self.group_para_climatology(overlapping_threshold)
@@ -238,22 +271,27 @@ class HistoryMatching:
 
             if (no_over_count > 0) & (i < no_iter -1) & (i >= 0):
                 c_s = pd.concat(list(summary2d.values()), axis = 0).sort_values(by='count')
-                c_s = c_s[c_s['count'] < overlapping_threshold]
                 if i == 0:
                     c_s.to_csv(self.root / 'output/diagnostic_2d_structural_error.csv')
 
-                no_overlap_2d_var = list(c_s[['var1', 'var2']].stack().value_counts()[:1].index) 
-                #no_overlap_2d_vars = no_overlap_2d_vars.append(no_overlap_2d_var[0])
-                print(f'Drop variable {no_overlap_2d_var}')
-                self.drop_no_overlap2d_vars(no_overlap_2d_var)
+                under_threshold = c_s[c_s['count'] < pair_wise_threshold]
+                if len(under_threshold) > 0:
+                    no_overlap_2d_var = list(under_threshold[['var1', 'var2']].stack().value_counts()[:1].index)
+                    print(f'Drop variable {no_overlap_2d_var}')
+                    self.drop_no_overlap2d_vars(no_overlap_2d_var)
 
+                else:
+                    print('Need to increase threshold to exclude more samples')
+                    pair_wise_threshold = pair_wise_threshold + added_num
+
+                
             if (no_over_count == 0) & (i < no_iter -1) & (i > 0): 
                 print('Finished dropping variables')
                 self.group_para_climatology(overlapping_threshold)
                 return 
             
             if (no_over_count > 0) & (i == no_iter -1):
-                print('Failed to resolve non-overlapping')
+                raise ValueError('Not enough of iterations to exclude the variables')
 
     
 
@@ -399,31 +437,26 @@ class HistoryMatching:
 
 
 
-    def compare_with_original(self, df_vline=None, bins=30, density=True):
+    def compare_with_original(self, bins=30, density=True):
 
-        dfs = [self.ppe_para, self.results.realscale_samples.iloc[:self.ppe_para.shape[0],:]]
+        dfs = [self.ppe_para, self.results.realscale_samples]
 
         cols = dfs[0].columns
         ncols = 5
         nrows = (len(cols) + ncols - 1) // ncols
         fig, axes = plt.subplots(nrows, ncols, figsize=(4*ncols, 3*nrows), squeeze=False)
 
-        df_vline = df_vline 
+
 
         for ax, c in zip(axes.ravel(), cols):
             # histograms
             for i, df in enumerate(dfs):
                 ax.hist(df[c].dropna(), bins=bins, density=density, alpha=0.4, label=f"hist{i}")
             # vlines
-            if df_vline is not None:
-                for j, df in enumerate(df_vline):
-                    vals = df[c].dropna()
-                    for k, v in enumerate(vals):
-                        ax.axvline(v, alpha=0.7, lw=1.5, linestyle="--",
-                                label=f"vline{j}" if k == 0 else None)
             ax.set_title(c)
 
         for ax in axes.ravel()[len(cols):]:
             ax.axis("off")
         axes[0,0].legend()
         fig.tight_layout()
+        self._finalize_figure(fig, "compare_with_original")

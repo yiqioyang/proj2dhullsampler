@@ -17,14 +17,21 @@ proj2dhullsampler/
 ├── proj2dhullsampler/
 │   ├── prep_class.py
 │   ├── hm_class.py
+│   ├── pipeline.py       # build_case(): shared config-driven setup used by
+│   │                     # both run_apply.py and apply.ipynb
+│   ├── run_apply.py      # notebook-free, config-driven script
 │   ├── sampling_functions.py
 │   ├── preprocess.py
 │   ├── plotting.py
 │   ├── aux.py
-│   └── utils.py
-├── notebooks/
-│   ├── prepare.ipynb
-│   └── implementation.ipynb
+│   ├── utils.py
+│   └── unused_funs.py   # exploratory helpers kept for reference; not imported by the package
+├── application/
+│   ├── apply.ipynb        # interactive, notebook-mode walkthrough
+│   ├── apply_config.json  # example config for run_apply.py
+│   ├── submit_apply.pbs   # PBS job template for Casper/Derecho
+│   ├── implementation.ipynb
+│   └── prepare.ipynb
 ├── tests/
 ├── pyproject.toml
 └── README.md
@@ -72,9 +79,16 @@ hm.prepare_case(
     {
         "n_cpus": 15,
         "threshold_levels": [2.0, 2.5],
+        "mode": "notebook",  # or "python"; see "Notebook vs. python mode" below
     }
 )
 ```
+
+`prepare_case`'s config controls `n_cpus`, `threshold_levels`, and (optionally)
+`mode`. The number of sensitive parameters retained per diagnostic (`n_sens_p`,
+default `2`) is not exposed through this path; to change it, call
+`hm.prep_case.sensitivity_emulation(n_sens_p=..., n_cpus=...)` directly
+before calling `hm.load_case()`.
 
 This creates a case directory like:
 
@@ -124,14 +138,19 @@ Typical files expected in the case directory at this stage include:
 
 ### 3. Run history matching and sample new parameters
 
-`HistoryMatching` groups diagnostics by parameter pair, builds alpha-shape
-hulls, checks overlap, and draws new samples from the feasible region.
+`HistoryMatching` filters out uninformative diagnostics, groups the remaining
+ones by their most sensitive parameter pair, resolves cases where the
+surviving regions for co-grouped diagnostics don't overlap, builds alpha-shape
+hulls, and draws new samples from the feasible region.
 
-Example:
+Example (mirrors the order used in `application/apply.ipynb`):
 
 ```python
-hm.drop_by_n_survive(n_survive=50)
-hm.group_para_climatology(overlapping_threshold=10_000)
+hm.drop_by_name(["local_PRECT_4_7_1_359"])   # drop diagnostics by name prefix
+hm.drop_by_n_survive(n_survive=50)           # drop diagnostics that are always/rarely satisfied
+hm.remove_var2d_auto(overlapping_threshold=10_000, added_num=100)  # resolve non-overlapping parameter-pair groups
+hm.drop_by_nvar_per_pair(n_var_thre=1)       # optional: drop pairs backed by too few diagnostics
+
 hm.prepare_for_sampling(
     shape_alpha=5,
     n_pts=10_000,
@@ -147,7 +166,23 @@ hm.draw(
     n_max=1_000,
 )
 hm.save_samples_specifications(result_name="case_a", top_n=100)
+hm.compare_with_original()  # optional: sanity-check sampled vs. original PPE parameter ranges
 ```
+
+`remove_var2d_auto` calls `group_para_climatology` (grouping diagnostics by
+sensitive parameter pair) and `shuffle_vars` (checking pairwise overlap within
+each group) internally and iterates until no non-overlapping groups remain.
+On each iteration it drops the diagnostic most implicated among variable
+pairs whose overlap falls below a pairwise threshold (which starts equal to
+`overlapping_threshold`). If a flagged group's *combined* intersection is
+below `overlapping_threshold` but every individual pair within it is not
+(a 3+-way interaction effect the pairwise check alone can't see), no pair
+qualifies that iteration; the pairwise threshold is then relaxed by
+`added_num` and the same group is re-evaluated on the next iteration, until
+something qualifies. If `no_iter` iterations are exhausted with groups still
+unresolved, it raises `ValueError` rather than returning silently. Call
+`group_para_climatology` directly only if you need the grouping without the
+overlap-resolution loop.
 
 The final saved outputs are written under `case_a/output/`, including:
 
@@ -157,6 +192,80 @@ The final saved outputs are written under `case_a/output/`, including:
 - `<result_name>_topn_para_realscale.nc`
 - `<result_name>_specifications.json`
 - `<result_name>_dropped_vars.json`
+
+## Notebook vs. python mode
+
+`HistoryMatching` accepts a `mode` of `"notebook"` (the default) or `"python"`,
+set either at construction (`HistoryMatching(working_dir, case_name, mode=...)`)
+or via the `"mode"` key in the dict passed to `prepare_case` (which overrides
+whatever was set at construction). It affects the two methods that produce
+checkup figures during the workflow, `visualize_check` and
+`compare_with_original`:
+
+- `"notebook"`: figures are shown inline with `plt.show()`, as before.
+- `"python"`: figures are saved as PNGs to `<case_dir>/diagnostics/` instead of
+  being displayed, and the figure `Axes` are closed afterward to avoid leaking
+  memory across a long-running script.
+
+`mode` only controls figure display/saving. It doesn't affect any of the
+`print()`-based status messages elsewhere in the pipeline (e.g. in
+`remove_var2d_auto` or the sensitivity-emulation step); those still go to
+stdout regardless of mode.
+
+## Running without a notebook
+
+`proj2dhullsampler/run_apply.py` replays the same workflow as
+`application/apply.ipynb` as a plain script, driven entirely by a JSON config
+file (see `application/apply_config.json` for a fully worked example,
+including data paths, `obs_dict`, `lat_bins`, manually selected regions,
+thresholds, and `mode`):
+
+```bash
+python proj2dhullsampler/run_apply.py --config application/apply_config.json
+```
+
+The data-loading and create-or-load-case logic (everything through
+`load_mask`) lives in `proj2dhullsampler/pipeline.py`'s `build_case(config,
+mode)`, which both `run_apply.py` and `apply.ipynb` call, so the two stay in
+sync: a config change only needs to be made once. `run_apply.py` itself
+handles only the CLI-specific parts (argument parsing, the batch diagnostics
+log, and the drop/sample/save steps that follow `build_case`).
+
+If the case directory doesn't exist yet, `build_case` creates and prepares it
+(equivalent to `create_case` + `prepare_case`); if it already exists, it
+loads it instead of re-running the (expensive) emulator training. When
+`config["mode"]` is `"python"`, `run_apply.py` also:
+
+- switches matplotlib to the non-interactive `Agg` backend, since there's no
+  display to show figures on,
+- tees all of the pipeline's `print()` output to
+  `<case_dir>/diagnostics/run_log.txt` in addition to stdout, so the
+  intermediate diagnostic messages survive an unattended/batch run.
+
+### Worker counts
+
+`prepare_case.n_cpus` (GP training parallelism) and `max_workers` (hull
+sampling parallelism) in the config are optional. If either is left out,
+`run_apply.py` falls back to the number of CPUs actually available to the
+process (`len(os.sched_getaffinity(0))`, which reflects a PBS/Slurm job's
+cgroup allocation, not just the whole node's core count). An explicit value
+in the config always takes precedence. The resolved values are printed (and,
+in `"python"` mode, logged to `run_log.txt`) at the start of each run.
+
+### Submitting as a PBS job
+
+`application/submit_apply.pbs` is a template job script for Casper/Derecho:
+
+```bash
+qsub application/submit_apply.pbs
+```
+
+Fill in `<PROJECT_CODE>` and adjust the `#PBS -q`/`select`/`walltime`
+directives for your case size. If you also drop `prepare_case.n_cpus` and
+`max_workers` from `apply_config.json`, the script automatically uses
+whatever CPU count the job was actually granted (see "Worker counts" above)
+instead of requiring the PBS resource request and the JSON config to be kept
+in sync by hand.
 
 ## Public API
 
@@ -196,7 +305,8 @@ pytest
 
 ## Notes
 
-- The documented notebooks are `notebooks/prepare.ipynb` and
-  `notebooks/implementation.ipynb`.
+- The documented notebooks are `application/prepare.ipynb` and
+  `application/implementation.ipynb`; `application/apply.ipynb` and
+  `proj2dhullsampler/run_apply.py` cover the workflow described above.
 - Most geometry operations assume parameters have been normalized to the
   `[0, 1]` range before hull construction and sampling.
