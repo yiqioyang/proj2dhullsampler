@@ -1,0 +1,212 @@
+// Annotated reference copy of apply_config.json.
+//
+// This file is NOT read by run_apply.py / apply.ipynb (JSON comments would
+// break json.load) — it exists purely as documentation. Keep apply_config.json
+// itself comment-free.
+//
+// Lines marked "xx" flag something I'm not fully certain about (either the
+// intended scientific meaning, or a spot where the code's actual behavior
+// looks like it could be a bug/mismatch with the field name) — please review
+// those specifically.
+{
+  "mode": "python",
+  // "notebook" or "python". Controls HistoryMatching._finalize_figure:
+  // "notebook" -> plt.show() inline; "python" -> figures saved as PNGs under
+  // <case_dir>/diagnostics/ and closed. In "python" mode, run_apply.py also
+  // switches matplotlib to the non-interactive "Agg" backend and tees all
+  // pipeline print() output to <case_dir>/diagnostics/run_log.txt.
+
+  "working_dir": "/glade/work/qingyuany/repo_data/",
+  // Parent directory for case folders. The actual case directory is
+  // working_dir/case_name.
+
+  "case_name": "proj2d_example_original_ppe3",
+  // Name of this case (= subdirectory under working_dir). If
+  // working_dir/case_name already exists, build_case() LOADS it instead of
+  // re-running the (expensive) emulator training — it does not re-create or
+  // overwrite it. Delete/rename the directory to force a fresh run.
+
+  "result_name": "sample1",
+  // Filename prefix for this run's outputs under <case_dir>/output/
+  // (<result_name>_all_para_realscale.csv/.nc, _topn_para_realscale.csv/.nc,
+  // _specifications.json, _dropped_vars.json). save_samples_specifications()
+  // raises FileExistsError if result_name has already been used in this case
+  // — pick a new name per sampling attempt within the same case.
+
+  "data_paths": {
+    "obs_nc": "/glade/u/home/qingyuany/repos/spatialtuning/data/nc_based_data/interpolated_obs.nc",
+    // Gridded observations (xarray Dataset, lat/lon), used to build the
+    // zonal-mean / manual-region obs diagnostics (see obs_dict, lat_bins,
+    // manual_regions below). Set to null only if obs_tab already has
+    // everything pre-tabulated.
+
+    "obs_tab": null,
+    // Optional pre-tabulated obs (CSV -> pandas Series, one value per
+    // diagnostic name). null here means obs values are derived entirely from
+    // obs_nc + lat_bins/manual_regions instead.
+
+    "para": "/glade/work/qingyuany/camml_re/v0/parameter_34_100.csv",
+    // PPE parameter table: one row per ensemble member, one column per tuned
+    // parameter, REAL (physical) scale. Every column must vary across rows
+    // (Prepare_Case raises if any column is constant across the ensemble).
+
+    "ppe_nc": "/glade/work/qingyuany/camml_re/v0/initial_ppe.nc",
+    // PPE model output (xarray Dataset), one extra ensemble-member dimension
+    // beyond lat/lon, variable names matching the keys of obs_dict below.
+
+    "ppe_tab": null
+    // Optional pre-tabulated PPE diagnostics (CSV), analogous to obs_tab.
+    // null means diagnostics are computed from ppe_nc instead.
+  },
+
+  "obs_dict": {
+    // Maps each PPE/model variable name (as found in ppe_nc, and used as the
+    // diagnostic-name prefix, e.g. "SWCF_zonal_...") to the corresponding
+    // variable name in obs_nc.
+    "SWCF": "swcrf_toa",
+    "LWCF": "lwcrf_toa",
+    "TMQ": "pwv",
+    "FLUT": "olr",
+    "PRECT": "pr",
+    "FSNTOA": "swabs_toa"
+  },
+
+  "lat_bins": {"start": -75, "stop": 75, "step": 5},
+  // Latitude bin edges via np.arange(start, stop, step) -- NOTE: np.arange's
+  // stop is exclusive, so this produces bins up to 70-75, not 75-80. Each
+  // obs_dict variable is longitude-averaged then latitude-binned into
+  // "<VAR>_zonal_<lo>to<hi>" diagnostics (zonal_process in preprocess.py).
+
+  "manual_regions": [
+    // In addition to the zonal-mean diagnostics above, keep these specific
+    // (unaveraged-over-lon) lat/lon boxes as their own diagnostics, named
+    // "local_<nm>_<lat_min>_<lat_max>_<lon_min>_<lon_max>" (local_process in
+    // preprocess.py). "nm" must be a key of obs_dict.
+    {"nm": "PRECT", "lat_min": 4, "lat_max": 7, "lon_min": 1, "lon_max": 359},
+    {"nm": "SWCF", "lat_min": 4, "lat_max": 7, "lon_min": 1, "lon_max": 359}
+    // xx: this box (lon 1-359, i.e. almost the whole globe, lat 4-7) reads
+    // like a placeholder/example region rather than a deliberately chosen
+    // tropical feature -- worth double-checking this is the intended area
+    // before treating its results as meaningful.
+  ],
+
+  "n_sample": 100000,
+  // Size of the UNIFORM RANDOM grid (in normalized [0,1]^d parameter space)
+  // that the trained emulators are evaluated on to build the true/false
+  // "acceptable" masks (sampled_parameters.nc / tf_masks_level_*.csv). This
+  // is the resolution of the history-matching search grid, NOT the number of
+  // final candidate parameter sets you get out at the end (that's governed
+  // by n_pts/n_threshold/n_max/top_n near the bottom of this file).
+
+  "prepare_case": {"n_cpus": 6, "threshold_levels": [2.0]},
+  // n_cpus: parallel worker processes (joblib) for fitting one GP emulator
+  //   per diagnostic during sensitivity_emulation. Optional; if omitted,
+  //   falls back to the PBS job's actual CPU allocation
+  //   (os.sched_getaffinity), not the whole node's core count.
+  // threshold_levels: list of implausibility thresholds (in emulator std
+  //   devs from the mean) to precompute tf_masks_level_<threshold>.csv for.
+  //   Only matters when the case is being freshly created; ignored when an
+  //   existing case is loaded (its masks are already on disk).
+
+  "threshold_level": 2.0,
+  // Which precomputed threshold level (from prepare_case.threshold_levels,
+  // or an existing case's tf_masks_level_*.csv) to actually load and use for
+  // this run, via load_mask(). Must match a value that was/ is in
+  // prepare_case.threshold_levels. This is the core "history matching"
+  // criterion: a sample is "accepted" for a diagnostic if
+  // |obs - emulator_mean| < threshold_level * emulator_std.
+  // xx: this only accounts for emulator uncertainty, not observational
+  // uncertainty (no obs-error term is supplied anywhere in this config) --
+  // confirm that's the intended implausibility metric for this study.
+
+  "emultor_error_ratio_threshold": 0.20,
+  // [sic - "emultor" is a typo baked into the code/config key, must match
+  // exactly]. Fraction of GP predictions allowed to fall outside the
+  // predicted mean +/- threshold_scale*std band before a diagnostic's
+  // emulator is considered unreliable and dropped (drop_by_emulator_performance).
+  // xx: this ratio is currently computed by validating the GP against the
+  // SAME data it was trained on (see utils.py:gp_training_application), i.e.
+  // an in-sample fit-quality check rather than a held-out generalization
+  // check -- worth confirming this is the intended validation strategy.
+
+  "visualize_check_vars": ["SWCF_zonal_30to40"],
+  // Diagnostic name(s) to auto-plot via visualize_check() right after a
+  // BRAND NEW case finishes preparing. Only runs on first creation of the
+  // case directory; has no effect when an existing case is loaded (as in
+  // this config, since case_name above already exists).
+
+  "vars_to_drop": ["TGCLDLWP"],
+  // Diagnostic name PREFIXES to manually exclude (drop_by_name), e.g. known
+  // problematic diagnostics. Matched with str.startswith(), so this also
+  // drops any diagnostic whose name starts with "TGCLDLWP" (e.g. zonal bins
+  // of it), not just an exact-name match.
+
+  "n_survive_threshold": 10000,
+  // Per-diagnostic filter (drop_by_n_survive) over the n_sample-point
+  // emulator grid: drop a diagnostic if it is satisfied by ALL n_sample
+  // points (contributes nothing -- "useless") OR by FEWER than this many
+  // points (considered too restrictive to trust on its own -- "tight").
+  // i.e. this drops diagnostics that are either completely uninformative or
+  // suspiciously over-constraining, keeping only the ones in between.
+
+  "n_survive_threshold_2d": 10000,
+  // Different concept from n_survive_threshold above despite the similar
+  // name/value: this is overlapping_threshold for remove_var2d_auto/
+  // group_para_climatology. Diagnostics get grouped by their shared
+  // top-2-sensitive-parameter pair; a group is flagged as "non-overlapping"
+  // if the count of grid points simultaneously satisfying ALL diagnostics in
+  // that group falls below this threshold, triggering the pairwise
+  // conflict-resolution loop described in the README.
+
+  "added_number_for_pairs": 100,
+  // Passed as added_num to remove_var2d_auto: when a flagged group's overall
+  // overlap is too low but no individual pair within it is (a 3+-way
+  // interaction effect), the pairwise threshold used to pick which single
+  // variable to drop is relaxed by this amount each iteration until
+  // something qualifies.
+
+  "n_var_thre": 0,
+  // drop_by_nvar_per_pair: drop a parameter-pair group if it's backed by
+  // <= n_var_thre diagnostics. xx: with n_var_thre=0 this only drops
+  // groups with 0 diagnostics (which shouldn't occur), i.e. it's currently a
+  // no-op; the README's own example uses 1 (drop pairs backed by a single
+  // diagnostic). Confirm 0 is intentional here rather than meant to be 1.
+
+  "max_workers": 6,
+  // Parallel worker PROCESSES for hull-based rejection sampling
+  // (prepare_for_sampling/draw, via ProcessPoolExecutor) -- a separate pool
+  // from prepare_case.n_cpus (which is only for GP fitting, via joblib).
+  // Optional; falls back to the job's CPU allocation if omitted.
+
+  "n_pts": 50000,
+  "n_threshold": 5000,
+  "sample_threshold": 1000000000,
+  "n_max": 1000,
+  // n_pts/n_threshold/sample_threshold are shared by BOTH prepare_for_sampling()
+  // (the hull-compatibility/orchestration check) and draw() (final sample
+  // generation) -- both are rejection-sampling loops with the same stopping
+  // logic, just used for different purposes:
+  //   n_pts: uniform draws generated per parallel batch attempt.
+  //   n_threshold: stop once at least this many total points have been
+  //     accepted across all batches (for prepare_for_sampling, this is "is
+  //     there enough overlap"; for draw, it's closer to your target output size).
+  //   sample_threshold: give up after this many total raw points have been
+  //     attempted without reaching n_threshold (prepare_for_sampling falls
+  //     into its variable-dropping fallback logic; draw() raises ValueError).
+  // n_max is draw()-only (prepare_for_sampling has no equivalent): after
+  // sampling finishes, keep only the first n_max accepted rows (positional
+  // truncation of an effectively unordered/multiprocessing-order set -- NOT
+  // a "best n_max" ranking; xx if a ranking was intended here, it isn't
+  // currently applied).
+  // xx: since n_threshold/sample_threshold are now shared, prepare_for_sampling's
+  // hull-compatibility check requires finding n_threshold=5000 surviving points
+  // (not the old default of 100) before it's satisfied -- confirm that's not
+  // making that check unnecessarily slow/prone to false "no overlap" triggers
+  // for your problem size.
+
+  "top_n": 100
+  // Of the (up to n_max) saved samples, also write a smaller "topn"
+  // CSV/NC containing just the first top_n rows as a shortlist. Same caveat
+  // as n_max above: "top" means "first in output order", not
+  // best-scoring/ranked in any way -- xx if ranking is expected.
+}

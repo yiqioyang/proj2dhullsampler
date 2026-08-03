@@ -216,7 +216,9 @@ stdout regardless of mode.
 `application/apply.ipynb` as a plain script, driven entirely by a JSON config
 file (see `application/apply_config.json` for a fully worked example,
 including data paths, `obs_dict`, `lat_bins`, manually selected regions,
-thresholds, and `mode`):
+thresholds, and `mode`; see `application/apply_config.annotated.jsonc` for a
+field-by-field commented walkthrough of what each key controls — it's a
+documentation-only copy, not something `run_apply.py` reads):
 
 ```bash
 python proj2dhullsampler/run_apply.py --config application/apply_config.json
@@ -265,63 +267,6 @@ whatever CPU count the job was actually granted (see "Worker counts" above)
 instead of requiring the PBS resource request and the JSON config to be kept
 in sync by hand.
 
-## Running a batch of cases (`cases/`)
-
-`cases/` drives `run_apply.py` over many cases at once from a single
-manifest, e.g. a parameter-recovery sweep with one case per
-`(training-set size, held-out member)` combination:
-
-```text
-cases/
-├── template_config.json   # shared config; only case_name/data_paths/working_dir vary per case
-├── make_configs.py        # expands a manifest.csv into one <case>.json per row
-├── submit_case.pbs        # PBS template for a single case (qsub'd once per case by submit_all.sh)
-└── submit_all.sh          # submits one PBS job per generated <case>.json in a target directory
-```
-
-1. **Generate per-case configs from a manifest.** `make_configs.py` reads a
-   `manifest.csv` with `n_train, obs_ind, run_dir` columns and, for each row,
-   copies `template_config.json` and overrides `case_name` (the `run_dir`
-   basename, e.g. `n30_obs40`), `working_dir`, and `data_paths` (pointed at
-   `<run_dir>/obs_truth.nc`, `<run_dir>/para.csv`, `<run_dir>/ppe.nc`). Every
-   other field — thresholds, `obs_dict`, `lat_bins`, manual regions,
-   `emultor_error_ratio_threshold`, etc. — comes from the template unchanged,
-   so all cases from one manifest share the same settings:
-
-   ```bash
-   python cases/make_configs.py \
-       --manifest /path/to/manifest.csv \
-       --working-dir /path/to/results/ \
-       --out-dir cases/threshold25
-   ```
-
-   `--manifest`, `--working-dir`, and `--out-dir` all have defaults baked
-   into the script (see its docstring); pass them explicitly to point at a
-   different manifest or to keep separate batches (e.g. different
-   `threshold_level` values) in separate output directories, since the
-   directory name itself carries no meaning to the tooling — it only matters
-   if you edit `template_config.json` (e.g. bump `threshold_level`) between
-   `make_configs.py` runs and use a different `--out-dir` each time, as was
-   done for `cases/threshold20` vs. `cases/threshold25`.
-
-2. **Submit one PBS job per generated config.**
-
-   ```bash
-   bash cases/submit_all.sh [target_dir]
-   ```
-
-   `target_dir` defaults to `cases/` itself; pass e.g. `cases/threshold25` to
-   submit that batch instead. For every `<target_dir>/n*_obs*.json`, it
-   `qsub`s `submit_case.pbs` (which just calls `run_apply.py --config
-   $CONFIG`), naming the job and its log after the config's basename and
-   writing the log to `<target_dir>/logs/<name>.log`.
-
-`template_config.json` must stay in sync with whatever keys `run_apply.py`
-requires (see `application/apply_config.json` for the full set) — a key
-missing from the template will fail every case generated from it, and since
-that failure happens inside `run_apply.py` after case creation/loading, it
-can surface only after the expensive emulator-training step has already run.
-
 ## Public API
 
 The package exposes one public class:
@@ -360,8 +305,19 @@ pytest
 
 ## Notes
 
-- The documented notebooks are `application/prepare.ipynb` and
-  `application/implementation.ipynb`; `application/apply.ipynb` and
-  `proj2dhullsampler/run_apply.py` cover the workflow described above.
+- The application entry points are `application/apply.ipynb` (interactive)
+  and `proj2dhullsampler/run_apply.py` (batch/PBS, driven by
+  `application/apply_config.json`); both cover the same workflow described
+  above via the shared `build_case()` helper.
 - Most geometry operations assume parameters have been normalized to the
   `[0, 1]` range before hull construction and sampling.
+- `apply_config.json`'s top-level `n_pts`/`n_threshold`/`sample_threshold` are
+  passed to both `prepare_for_sampling()` (hull construction/orchestration)
+  and `draw()` (final sample generation). `shape_alpha` is not exposed in the
+  config and stays at `HistoryMatching.prepare_for_sampling`'s default (`5`)
+  for both stages.
+- The emulator "validation" error ratio (`validation_error_ratio.csv`, used
+  by `drop_by_emulator_performance`/`emultor_error_ratio_threshold`) is
+  currently computed by evaluating each GP on the same data it was trained
+  on, not a held-out split — treat it as an in-sample fit-quality check
+  rather than a generalization estimate.
