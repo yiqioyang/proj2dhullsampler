@@ -1,7 +1,7 @@
 {
   "mode": "python",
   "working_dir": "/glade/work/qingyuany/repo_data/",
-  "case_name": "proj2d_example_original_ppe",
+  "case_name": "proj2d_example_original_ppe3",
   "result_name": "sample1",
 
   "data_paths": {
@@ -21,7 +21,7 @@
     "FSNTOA": "swabs_toa"
   },
 
-  "lat_bins": {"start": -75, "stop": 76, "step": 10},
+  "lat_bins": {"start": -75, "stop": 75, "step": 5},
 
   "manual_regions": [
     {"nm": "PRECT", "lat_min": 4, "lat_max": 7, "lon_min": 1, "lon_max": 359},
@@ -33,11 +33,11 @@
   "prepare_case": {"n_cpus": 6, "threshold_levels": [2.0]},
   "threshold_level": 2.0,
   "emultor_error_ratio_threshold": 0.20,
-  "visualize_check_vars": ["SWCF_zonal_-45to-35", "LWCF_zonal_-45to-35"],
+  "visualize_check_vars": ["SWCF_zonal_30to40"],
 
   "vars_to_drop": ["TGCLDLWP"],
-  "n_survive_threshold": 5000,
-  "n_survive_threshold_2d": 5000,
+  "n_survive_threshold": 10000,
+  "n_survive_threshold_2d": 10000,
   "added_number_for_pairs": 100, 
   "n_var_thre": 0,
   "max_workers": 6,
