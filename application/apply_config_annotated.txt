@@ -1,7 +1,7 @@
 {
   "mode": "python",                                                                                   ### python if submitted as a job; otherwise Notebook
   "working_dir": "/glade/work/qingyuany/repo_data/",
-  "case_name": "proj2d_example_original_ppe12",
+  "case_name": "proj2d_example_original_ppe",
   "result_name": "sample1",                                                                    
   "data_paths": {
     "obs_nc": "/glade/u/home/qingyuany/repos/spatialtuning/data/nc_based_data/interpolated_obs.nc",   ### if not available, null                            

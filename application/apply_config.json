@@ -1,7 +1,7 @@
 {
   "mode": "python",                                                                                   
   "working_dir": "/glade/work/qingyuany/repo_data/",
-  "case_name": "proj2d_example_original_ppe15",
+  "case_name": "proj2d_example_original_ppe",
   "result_name": "sample1",                                                                    
   "data_paths": {
     "obs_nc": "/glade/u/home/qingyuany/repos/spatialtuning/data/nc_based_data/interpolated_obs.nc",   
@@ -20,7 +20,7 @@
     "FSNTOA": "swabs_toa"
   },
 
-  "lat_bins": {"start": -75, "stop": 75, "step": 10},                                                 
+  "lat_bins": {"start": -70, "stop": 70, "step": 5},                                                 
 
   "manual_regions": [                                                                                 
     {"nm": "PRECT", "lat_min": 4, "lat_max": 7, "lon_min": 1, "lon_max": 359},
@@ -29,10 +29,10 @@
 
   "n_sample": 100000,                                                                                 
 
-  "prepare_case": {"n_cpus": 6, "threshold_levels": [2.0]},                                           
+  "prepare_case": {"n_cpus": 10, "threshold_levels": [2.0]},                                           
   "threshold_level": 2.0,                                                                             
   "emultor_error_ratio_threshold": 0.20,                                                              
-  "visualize_check_vars": ["SWCF_zonal_35to40"],                                                      
+  "visualize_check_vars": ["SWCF_zonal_35to40","LWCF_zonal_35to40"],                                                      
 
   "vars_to_drop": ["TGCLDLWP"],                                                                       
   "n_survive_threshold": 10000,                                                                       
