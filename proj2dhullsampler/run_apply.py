@@ -124,9 +124,9 @@ def _run_pipeline(config, mode, working_dir, case_name, log_file_box):
     test_case.drop_by_nvar_per_pair(config['n_var_thre'])
 
     test_case.prepare_for_sampling(
-        n_pts=config["n_pts"],
-        n_threshold=config["n_threshold"],
-        sample_threshold=config["sample_threshold"],
+        n_pts=config["testing_n_pts"],
+        n_threshold=config["testing_n_threshold"],
+        sample_threshold=config["testing_sample_threshold"],
         max_workers=max_workers,
     )
     test_case.draw(
