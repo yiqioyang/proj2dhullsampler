@@ -4,7 +4,7 @@
 history matching of spatial climate diagnostics. It includes utilities for:
 
 - preparing observational and PPE-derived feature tables
-- training and applying Gaussian process emulators
+- training and applying Gaussian process emulators based on the most two sensitive parameters
 - building boolean masks of acceptable simulations
 - grouping diagnostics by sensitive parameter pairs
 - constructing alpha-shape hulls in normalized parameter space
@@ -29,9 +29,7 @@ proj2dhullsampler/
 ├── application/
 │   ├── apply.ipynb        # interactive, notebook-mode walkthrough
 │   ├── apply_config.json  # example config for run_apply.py
-│   ├── submit_apply.pbs   # PBS job template for Casper/Derecho
-│   ├── implementation.ipynb
-│   └── prepare.ipynb
+│   └── submit_apply.pbs   # PBS job template for Casper/Derecho
 ├── tests/
 ├── pyproject.toml
 └── README.md
@@ -218,7 +216,9 @@ stdout regardless of mode.
 `application/apply.ipynb` as a plain script, driven entirely by a JSON config
 file (see `application/apply_config.json` for a fully worked example,
 including data paths, `obs_dict`, `lat_bins`, manually selected regions,
-thresholds, and `mode`):
+thresholds, and `mode`; see `application/apply_config.annotated.jsonc` for a
+field-by-field commented walkthrough of what each key controls — it's a
+documentation-only copy, not something `run_apply.py` reads):
 
 ```bash
 python proj2dhullsampler/run_apply.py --config application/apply_config.json
@@ -305,8 +305,19 @@ pytest
 
 ## Notes
 
-- The documented notebooks are `application/prepare.ipynb` and
-  `application/implementation.ipynb`; `application/apply.ipynb` and
-  `proj2dhullsampler/run_apply.py` cover the workflow described above.
+- The application entry points are `application/apply.ipynb` (interactive)
+  and `proj2dhullsampler/run_apply.py` (batch/PBS, driven by
+  `application/apply_config.json`); both cover the same workflow described
+  above via the shared `build_case()` helper.
 - Most geometry operations assume parameters have been normalized to the
   `[0, 1]` range before hull construction and sampling.
+- `apply_config.json`'s top-level `n_pts`/`n_threshold`/`sample_threshold` are
+  passed to both `prepare_for_sampling()` (hull construction/orchestration)
+  and `draw()` (final sample generation). `shape_alpha` is not exposed in the
+  config and stays at `HistoryMatching.prepare_for_sampling`'s default (`5`)
+  for both stages.
+- The emulator "validation" error ratio (`validation_error_ratio.csv`, used
+  by `drop_by_emulator_performance`/`emultor_error_ratio_threshold`) is
+  currently computed by evaluating each GP on the same data it was trained
+  on, not a held-out split — treat it as an in-sample fit-quality check
+  rather than a generalization estimate.

@@ -1,50 +1,51 @@
 {
-  "mode": "python",
+  "mode": "python",                                                                                   
   "working_dir": "/glade/work/qingyuany/repo_data/",
-  "case_name": "proj2d_example_1",
-  "result_name": "sample1",
-
+  "case_name": "proj2d_example_original_ppe",
+  "result_name": "sample1",                                                                    
   "data_paths": {
-    "obs_nc": "/glade/u/home/qingyuany/repos/spatialtuning/data/nc_based_data/interpolated_obs.nc",
-    "obs_tab": "/glade/u/home/qingyuany/repos/spatialtuning/data/nc_based_data/obs_tab.csv",
-    "para": "/glade/u/home/qingyuany/repos/spatialtuning/data/nc_based_data/para.csv",
-    "ppe_nc": "/glade/u/home/qingyuany/repos/spatialtuning/data/nc_based_data/ppe.nc",
-    "ppe_tab": "/glade/u/home/qingyuany/repos/spatialtuning/data/nc_based_data/ppe_tab.csv"
+    "obs_nc": "/glade/u/home/qingyuany/repos/spatialtuning/data/nc_based_data/interpolated_obs.nc",   
+    "obs_tab": null,                                                                                  
+    "para": "/glade/work/qingyuany/camml_re/v0/parameter_34_100.csv",
+    "ppe_nc": "/glade/work/qingyuany/camml_re/v0/initial_ppe.nc",                                     
+    "ppe_tab": null                                                                                   
   },
 
-  "obs_dict": {
+  "obs_dict": {                                                                                       
     "SWCF": "swcrf_toa",
     "LWCF": "lwcrf_toa",
-    "TGCLDLWP": "tlwp",
     "TMQ": "pwv",
     "FLUT": "olr",
     "PRECT": "pr",
     "FSNTOA": "swabs_toa"
   },
 
-  "lat_bins": {"start": -75, "stop": 76, "step": 30},
+  "lat_bins": {"start": -70, "stop": 70, "step": 5},                                                 
 
-  "manual_regions": [
+  "manual_regions": [                                                                                 
     {"nm": "PRECT", "lat_min": 4, "lat_max": 7, "lon_min": 1, "lon_max": 359},
     {"nm": "SWCF", "lat_min": 4, "lat_max": 7, "lon_min": 1, "lon_max": 359}
   ],
 
-  "n_sample": 1000000,
+  "n_sample": 100000,                                                                                 
 
-  "prepare_case": {"n_cpus": 4, "threshold_levels": [2.0]},
-  "threshold_level": 2.0,
-  "emultor_error_ratio_threshold": 0.04,
-  "visualize_check_vars": ["SWCF_zonal_-45to-15"],
+  "prepare_case": {"n_cpus": 10, "threshold_levels": [2.0]},                                           
+  "threshold_level": 2.0,                                                                             
+  "emultor_error_ratio_threshold": 0.20,                                                              
+  "visualize_check_vars": ["SWCF_zonal_35to40","LWCF_zonal_35to40"],                                                      
 
-  "vars_to_drop": ["local_PRECT_4_7_1_359"],
-  "n_survive_threshold": 50000,
-  "n_survive_threshold_2d": 50000,
-  "added_number_for_pairs": 100, 
-  "n_var_thre": 1,
-  "max_workers": 6,
-  "n_pts": 50000,
-  "n_threshold": 5000,
-  "sample_threshold": 1000000000,
-  "n_max": 1000,
-  "top_n": 100
+  "vars_to_drop": ["TGCLDLWP"],                                                                       
+  "n_survive_threshold": 10000,                                                                       
+  "n_survive_threshold_2d": 10000,                                                                    
+  "added_number_for_pairs": 100,                                                                      
+  "n_var_thre": 1,                                                                                    
+  "max_workers": 6,                                                                                   
+  "testing_n_pts": 50000,                                                                             
+  "testing_n_threshold": 5000,                                                                        
+  "testing_sample_threshold": 100000000,                                                              
+  "n_pts": 50000,                                                                                     
+  "n_threshold": 5000,                                                                                
+  "sample_threshold": 1000000000,                                                                     
+  "n_max": 1000,                                                                                      
+  "top_n": 100                                                                                        
 }
