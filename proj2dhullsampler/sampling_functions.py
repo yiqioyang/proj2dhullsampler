@@ -154,7 +154,7 @@ def orchestrate_test(para_seq, X, tf_masks, para_nm, grouped_hulls, paras_vars, 
         if out is None:
             print("Find nothing, try to resolve it by breaking the variables into groups")
             print("First sample out_prev that needs greater sample size, which will take long")
-            out_prev = sample_from_hulls_n(para_l[:-1], para_nm, grouped_hulls, n_pts=  n_pts, n_threshold = n_threshold, max_workers = max_workers, sample_threshold=sample_threshold * 200 * round(error_sample_size_scaling))
+            out_prev = sample_from_hulls_n(para_l[:-1], para_nm, grouped_hulls, n_pts=  n_pts, n_threshold = n_threshold, max_workers = max_workers, sample_threshold=sample_threshold * 50)
             if (out_prev is None):
                 raise ValueError("out_prev is None")
 

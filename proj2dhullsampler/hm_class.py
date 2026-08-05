@@ -241,7 +241,7 @@ class HistoryMatching:
             pd_list = []
             
             for vars_comb in combinations(vars_temp, n_comb):
-                if len(vars_temp) >= n_comb:
+                if (len(vars_temp) >= n_comb):
                     pd_list.append(list(vars_comb) + [self.tf_masks[list(vars_comb)].all(axis = 1).sum()])
                 else:
                     raise ValueError("n_comb is too large")
