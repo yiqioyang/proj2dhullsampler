@@ -29,6 +29,7 @@ proj2dhullsampler/
 ├── application/
 │   ├── apply.ipynb        # interactive, notebook-mode walkthrough
 │   ├── apply_config.json  # example config for run_apply.py
+│   ├── apply_config_annotated.txt # Annotated configuraiton file 
 │   └── submit_apply.pbs   # PBS job template for Casper/Derecho
 ├── tests/
 ├── pyproject.toml

@@ -1,13 +1,13 @@
 {
   "mode": "python",                                                                                   
   "working_dir": "/glade/work/qingyuany/repo_data/",
-  "case_name": "proj2d_example_original_ppe",
-  "result_name": "sample1",                                                                    
+  "case_name": "test_iteration1_debug10",
+  "result_name": "iteration1",                                                                    
   "data_paths": {
     "obs_nc": "/glade/u/home/qingyuany/repos/spatialtuning/data/nc_based_data/interpolated_obs.nc",   
     "obs_tab": null,                                                                                  
-    "para": "/glade/work/qingyuany/camml_re/v0/parameter_34_100.csv",
-    "ppe_nc": "/glade/work/qingyuany/camml_re/v0/initial_ppe.nc",                                     
+    "para": "/glade/work/qingyuany/camml_proj/organized_manu_based/iteration1_para.csv",
+    "ppe_nc": "/glade/work/qingyuany/camml_proj/organized_manu_based/iteration1_ppe.nc",                                     
     "ppe_tab": null                                                                                   
   },
 
@@ -29,7 +29,7 @@
 
   "n_sample": 100000,                                                                                 
 
-  "prepare_case": {"n_cpus": 10, "threshold_levels": [2.0]},                                           
+  "prepare_case": {"n_cpus": 16, "threshold_levels": [2.0]},                                           
   "threshold_level": 2.0,                                                                             
   "emultor_error_ratio_threshold": 0.20,                                                              
   "visualize_check_vars": ["SWCF_zonal_35to40","LWCF_zonal_35to40"],                                                      
@@ -39,12 +39,12 @@
   "n_survive_threshold_2d": 10000,                                                                    
   "added_number_for_pairs": 100,                                                                      
   "n_var_thre": 1,                                                                                    
-  "max_workers": 6,                                                                                   
+  "max_workers": 16,                                                                                   
   "testing_n_pts": 50000,                                                                             
-  "testing_n_threshold": 5000,                                                                        
-  "testing_sample_threshold": 100000000,                                                              
+  "testing_n_threshold": 200,                                                                        
+  "testing_sample_threshold": 100000,                                                              
   "n_pts": 50000,                                                                                     
-  "n_threshold": 5000,                                                                                
+  "n_threshold": 200,                                                                                
   "sample_threshold": 1000000000,                                                                     
   "n_max": 1000,                                                                                      
   "top_n": 100                                                                                        

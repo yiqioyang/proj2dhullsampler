@@ -103,7 +103,7 @@ def sample_from_hulls_n(
 
 
 
-def test_ind_vars(X_prev, X, para_nm, tf_masks, grouped_hulls, para, paras_vars, shape_alpha = 5):
+def test_ind_vars(X_prev, X, para_nm, tf_masks, grouped_hulls, para, paras_vars, threshold_ratio, shape_alpha = 5):
     print(f'\t \tRunning test to see if {para} could be break down and lead to non-overlapping')
 
     vars = paras_vars[para]
@@ -122,11 +122,11 @@ def test_ind_vars(X_prev, X, para_nm, tf_masks, grouped_hulls, para, paras_vars,
             hull_sub = alphashape.alphashape(X_sub, shape_alpha)
 
             attempt = sample_from_hull(X_prev, para, hull_sub)
-            
-            if not attempt.empty:
-                print(f'\t \t \t Found the good variable combo')
+            #xxx
+            if (attempt is not None) and (not attempt.empty) and (attempt.shape[0]/ X_prev.shape[0] > threshold_ratio):
+                print(f'\t \t \t \t Found the good variable combo')
                 drop_vars = [x for x in vars if x not in list(var_comb)]
-                return list(var_comb), drop_vars, hull_sub
+                return list(var_comb), drop_vars, hull_sub, attempt
             else:
                 pass 
 
@@ -138,59 +138,79 @@ def test_ind_vars(X_prev, X, para_nm, tf_masks, grouped_hulls, para, paras_vars,
 
 
 
-
-def orchestrate_test(para_seq, X, tf_masks, para_nm, grouped_hulls, paras_vars, n_pts=10000, n_threshold=10000, sample_threshold = 10**7, max_workers=None):
+def orchestrate_test(para_seq, X, tf_masks, para_nm, grouped_hulls, paras_vars, n_pts=10000, n_threshold=10000, sample_threshold = 10**7, max_workers=None, threshold_ratio = 0.02):
     para_l = []
     
     var_drop = {}
-    error_sample_size_scaling = 1
+    error_sample_size_scaling = 1.0
     out_prev = None
-    non_over_count = 0
+    prev_sample_size = sample_threshold
+
     for p_count, p in enumerate(para_seq):
+        sample_threshold = int(sample_threshold)
+        prev_sample_size = int(prev_sample_size)
         print(f'Running {p}, the {p_count}th simulation')
+        print(f'Current sampling size is {sample_threshold}')
+        print(f'Previous sample size is {prev_sample_size}')
+        
         para_l.append(p)
         out = sample_from_hulls_n(para_l, para_nm, grouped_hulls, n_pts=  n_pts, n_threshold = n_threshold, sample_threshold = sample_threshold, max_workers = max_workers)
         
-        if out is None:
-            print("Find nothing, try to resolve it by breaking the variables into groups")
-            print("First sample out_prev that needs greater sample size, which will take long")
-            out_prev = sample_from_hulls_n(para_l[:-1], para_nm, grouped_hulls, n_pts=  n_pts, n_threshold = n_threshold, max_workers = max_workers, sample_threshold=sample_threshold * 200 * round(error_sample_size_scaling))
+        if (out is None) or (out.shape[0]/prev_sample_size < threshold_ratio):
+            print("\t Find nothing or the shrink is too rapid, try to resolve it by breaking the variables into groups")
+            out_prev = sample_from_hulls_n(para_l[:-1], para_nm, grouped_hulls, n_pts=  n_pts, n_threshold = n_threshold, max_workers = max_workers, sample_threshold=sample_threshold)
             if (out_prev is None):
                 raise ValueError("out_prev is None")
 
             print(f'The size of out_prev is {out_prev.shape[0]}')
             if (out_prev.shape[0] < 100) & (out_prev.shape[0] > 0) & (out_prev is not None):
                 error_sample_size_scaling = min(100.0/out_prev.shape[0], 100)
-                print(f'Increase the scheudler ratio to {error_sample_size_scaling}')
+                sample_threshold = sample_threshold * error_sample_size_scaling
+                out_prev = sample_from_hulls_n(para_l[:-1], para_nm, grouped_hulls, n_pts=  n_pts, n_threshold = n_threshold, max_workers = max_workers, sample_threshold=sample_threshold)
+                print(f'\t \t Sample size too small, have to increase the sample size to {sample_threshold}')
+                print(f'\t \t based on the scheudler ratio of {error_sample_size_scaling}')
+                print(f'\t \t The size of out_prev is updated to {out_prev.shape[0]}')
+                
                 
 
-    
-            check_pt = test_ind_vars(out_prev, X, para_nm, tf_masks, grouped_hulls, p, paras_vars, shape_alpha = 5)
+            check_pt = test_ind_vars(out_prev, X, para_nm, tf_masks, grouped_hulls, p, paras_vars, threshold_ratio, shape_alpha = 5)
             if check_pt is None:
                 para_l.remove(p)
                 
                 var_drop[p] = paras_vars[p]
                 del grouped_hulls[p]
                 del paras_vars[p]
-                print(f'\t \t \t \t {p} is causing trouble and is skipped')
-                non_over_count = non_over_count + 1
-                
+                print(f'\t \t \t {p} is causing trouble and is skipped')
+                prev_sample_size = out_prev.shape[0]
                 
                 
             else:
-                print(f'\t \t \t \t Modify the original hull and variable')
-                print(f'\t \t \t \t Drop {check_pt[1]}')
+                print(f'\t \t \t Modify the original hull and variable')
+                print(f'\t \t \t Drop {check_pt[1]}')
                 grouped_hulls[p] = check_pt[2]
                 paras_vars[p] = check_pt[0]
                 var_drop[p] = check_pt[1]
+                prev_sample_size = check_pt[3].shape[0]
+                sample_threshold = sample_threshold * min(100.0/prev_sample_size, 100)
+                print(f'\t \t \t After exluding some variables, the number of surviving samples is {prev_sample_size}')
+                print(f' \t \t \t We also increase the sample threshold by {min(100.0/prev_sample_size, 100)}')
+
                 
         else:
-            print(f'There is overlap for {p}. Proceed to the next parameter pair')
-            
+            print(f'\t There is overlap for {p}. There are {out.shape[0]} surviving ensemble members. ')
+            if out.shape[0] < 100:
+                error_sample_size_scaling = min(100.0/out.shape[0], 100)
+                sample_threshold = sample_threshold * error_sample_size_scaling
 
-        print("======================================================================")
+                prev_sample_size = out.shape[0] * error_sample_size_scaling
+                print(f'\t \t Since the surviving sample size is too small, we have to increase the sample threshold by {error_sample_size_scaling}')
+                print(f'\t \t The ***estimated*** # of surviving pts is {prev_sample_size}')
+            else:
+                prev_sample_size = out.shape[0]
+                print(f'\t \t The ***actual*** # of surviving pts is {prev_sample_size}')
+                print(f'\t \t Proceed to the next iteration')
+        print("===============================End of one iteration=======================================")
 
 
-        
         
     return grouped_hulls, para_l, paras_vars, var_drop, out_prev

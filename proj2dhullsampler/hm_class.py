@@ -241,7 +241,7 @@ class HistoryMatching:
             pd_list = []
             
             for vars_comb in combinations(vars_temp, n_comb):
-                if len(vars_temp) >= n_comb:
+                if (len(vars_temp) >= n_comb):
                     pd_list.append(list(vars_comb) + [self.tf_masks[list(vars_comb)].all(axis = 1).sum()])
                 else:
                     raise ValueError("n_comb is too large")
@@ -262,8 +262,16 @@ class HistoryMatching:
     def remove_var2d_auto(self, overlapping_threshold, no_iter = 1000, added_num = 1000):
         pair_wise_threshold = overlapping_threshold
         for i in range(no_iter):
-
             self.group_para_climatology(overlapping_threshold)
+
+            if i == 0:
+                paras_vars_json_ready = {str(k): v for k, v in self.paras_vars.items()}
+
+                original_para_var_path = self.root / ("original_para_var_dict.json")
+                with open(original_para_var_path, 'w') as f:
+                    json.dump(paras_vars_json_ready, f, indent=2)
+            
+
             summary2d, no_over_count = self.shuffle_vars()
 
             if (i == 0) & (no_over_count == 0):
