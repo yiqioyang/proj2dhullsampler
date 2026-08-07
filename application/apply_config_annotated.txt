@@ -42,7 +42,7 @@
   "max_workers": 6,                                                                                   ### Number of cpus to be used 
   "testing_n_pts": 50000,                                                                             ### Value used to integrate different parameter pairs. No need to modify
   "testing_n_threshold": 5000,                                                                        ### Value used to integrate different parameter pairs. No need to modify
-  "testing_sample_threshold": 100000000,                                                              ### Value used to integrate different parameter pairs. No need to modify
+  "testing_sample_threshold": 1000000,                                                                ### Value used to integrate different parameter pairs. No need to modify
   "n_pts": 50000,                                                                                     ### Intermediate value for sampling. No need to modify
   "n_threshold": 5000,                                                                                ### Intermediate value for sampling. No need to modify
   "sample_threshold": 1000000000,                                                                     ### Intermediate value for sampling. No need to modify

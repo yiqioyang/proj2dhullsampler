@@ -262,8 +262,16 @@ class HistoryMatching:
     def remove_var2d_auto(self, overlapping_threshold, no_iter = 1000, added_num = 1000):
         pair_wise_threshold = overlapping_threshold
         for i in range(no_iter):
-
             self.group_para_climatology(overlapping_threshold)
+
+            if i == 0:
+                paras_vars_json_ready = {str(k): v for k, v in self.paras_vars.items()}
+
+                original_para_var_path = self.root / ("original_para_var_dict.json")
+                with open(original_para_var_path, 'w') as f:
+                    json.dump(paras_vars_json_ready, f, indent=2)
+            
+
             summary2d, no_over_count = self.shuffle_vars()
 
             if (i == 0) & (no_over_count == 0):
