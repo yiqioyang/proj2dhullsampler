@@ -103,7 +103,7 @@ def sample_from_hulls_n(
 
 
 
-def test_ind_vars(X_prev, X, para_nm, tf_masks, grouped_hulls, para, paras_vars, threshold_ratio, shape_alpha = 5):
+def test_ind_vars(X_prev, X, para_nm, tf_masks, grouped_hulls, para, paras_vars, threshold_ratio_between_para_pairs, shape_alpha = 5):
     print(f'\t \tRunning test to see if {para} could be break down and lead to non-overlapping')
 
     vars = paras_vars[para]
@@ -123,7 +123,7 @@ def test_ind_vars(X_prev, X, para_nm, tf_masks, grouped_hulls, para, paras_vars,
 
             attempt = sample_from_hull(X_prev, para, hull_sub)
             #xxx
-            if (attempt is not None) and (not attempt.empty) and (attempt.shape[0]/ X_prev.shape[0] > threshold_ratio):
+            if (attempt is not None) and (not attempt.empty) and (attempt.shape[0]/ X_prev.shape[0] > threshold_ratio_between_para_pairs):
                 print(f'\t \t \t \t Found the good variable combo')
                 drop_vars = [x for x in vars if x not in list(var_comb)]
                 return list(var_comb), drop_vars, hull_sub, attempt
@@ -138,7 +138,7 @@ def test_ind_vars(X_prev, X, para_nm, tf_masks, grouped_hulls, para, paras_vars,
 
 
 
-def orchestrate_test(para_seq, X, tf_masks, para_nm, grouped_hulls, paras_vars, n_pts=10000, n_threshold=10000, sample_threshold = 10**7, max_workers=None, threshold_ratio = 0.02):
+def orchestrate_test(para_seq, X, tf_masks, para_nm, grouped_hulls, paras_vars, n_pts=10000, n_threshold=10000, sample_threshold = 10**7, max_workers=None, threshold_ratio_between_para_pairs = 0.02):
     para_l = []
     
     var_drop = {}
@@ -156,7 +156,7 @@ def orchestrate_test(para_seq, X, tf_masks, para_nm, grouped_hulls, paras_vars, 
         para_l.append(p)
         out = sample_from_hulls_n(para_l, para_nm, grouped_hulls, n_pts=  n_pts, n_threshold = n_threshold, sample_threshold = sample_threshold, max_workers = max_workers)
         
-        if (out is None) or (out.shape[0]/prev_sample_size < threshold_ratio):
+        if (out is None) or (out.shape[0]/prev_sample_size < threshold_ratio_between_para_pairs):
             print("\t Find nothing or the shrink is too rapid, try to resolve it by breaking the variables into groups")
             out_prev = sample_from_hulls_n(para_l[:-1], para_nm, grouped_hulls, n_pts=  n_pts, n_threshold = n_threshold, max_workers = max_workers, sample_threshold=sample_threshold)
             if (out_prev is None):
@@ -173,7 +173,7 @@ def orchestrate_test(para_seq, X, tf_masks, para_nm, grouped_hulls, paras_vars, 
                 
                 
 
-            check_pt = test_ind_vars(out_prev, X, para_nm, tf_masks, grouped_hulls, p, paras_vars, threshold_ratio, shape_alpha = 5)
+            check_pt = test_ind_vars(out_prev, X, para_nm, tf_masks, grouped_hulls, p, paras_vars, threshold_ratio_between_para_pairs, shape_alpha = 5)
             if check_pt is None:
                 para_l.remove(p)
                 

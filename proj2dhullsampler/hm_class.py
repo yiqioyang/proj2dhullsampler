@@ -340,13 +340,13 @@ class HistoryMatching:
         return (ppe_para.max() - ppe_para.min()) * sampled_para + ppe_para.min()
     
 
-    def orchestrate(self, n_pts, n_threshold, sample_threshold, max_workers):
+    def orchestrate(self, n_pts, n_threshold, sample_threshold, max_workers,threshold_ratio_between_para_pairs):
 
 
         para_seq = list(self.grouped_hulls.keys())
         
         check = orchestrate_test(para_seq, self.p_emu, self.tf_masks,  
-                         self.para_nm, self.grouped_hulls, self.paras_vars, n_pts, n_threshold, sample_threshold, max_workers)
+                         self.para_nm, self.grouped_hulls, self.paras_vars, n_pts, n_threshold, sample_threshold, max_workers, threshold_ratio_between_para_pairs)
 
         self.results.valid_hulls = check[0]
         self.results.para_l = check[1]
@@ -354,10 +354,10 @@ class HistoryMatching:
         self.specifications.dropped_during_orchastrate = check[3]
 
 
-    def prepare_for_sampling(self, shape_alpha = 5, n_pts = 10000, n_threshold = 100, sample_threshold = 10**5, max_workers = 2):
+    def prepare_for_sampling(self, shape_alpha = 5, n_pts = 10000, n_threshold = 1000, sample_threshold = 10**5, max_workers = 2, threshold_ratio_between_para_pairs = 0.02):
         self.build_hulls(shape_alpha)
         print('Finish constructing the 2d polygons/convex hulls')
-        self.orchestrate(n_pts, n_threshold, sample_threshold, max_workers)
+        self.orchestrate(n_pts, n_threshold, sample_threshold, max_workers, threshold_ratio_between_para_pairs)
         print('Finish preparing for drawing samples')
 
 
