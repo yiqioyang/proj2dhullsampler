@@ -10,6 +10,72 @@ history matching of spatial climate diagnostics. It includes utilities for:
 - constructing alpha-shape hulls in normalized parameter space
 - drawing new candidate parameter sets from the surviving region
 
+## Installation
+
+Python 3.10+ is required.
+
+Install the package in editable mode:
+
+```bash
+pip install -e .
+```
+
+Install with development dependencies:
+
+```bash
+pip install -e .[dev]
+```
+
+## Running the Pipeline
+
+There are two ways to run the workflow, both driven by the same JSON config
+and the same `build_case()` helper in `pipeline.py` (so a config change only
+needs to be made once):
+
+### 1. PBS / qsub (recommended)
+
+```bash
+qsub application/submit_apply.pbs
+```
+
+`submit_apply.pbs` runs `proj2dhullsampler/run_apply.py --config
+application/apply_config.json`. Fill in `<PROJECT_CODE>` and adjust the
+`#PBS -q`/`select`/`walltime` directives for your case size. If you also
+drop `prepare_case.n_cpus` and `max_workers` from the config, the run uses
+whatever CPU count the job was actually granted (see "Worker counts" below)
+instead of requiring the PBS resource request and the JSON config to be kept
+in sync by hand.
+
+**`application/apply_config_annotated.txt` documents every field in
+`apply_config.json`** — check there first if you're unsure what a value
+does. It's a documentation-only copy; `run_apply.py` itself reads
+`apply_config.json`, not the annotated file.
+
+With `"mode": "python"` (the mode `submit_apply.pbs` uses), `run_apply.py`
+switches matplotlib to the non-interactive `Agg` backend and tees all
+pipeline `print()` output to `<case_dir>/diagnostics/run_log.txt`, so a
+batch run's diagnostics survive without a display attached. See "Notebook
+vs. python mode" below for what else `mode` affects.
+
+### 2. Jupyter notebook (interactive)
+
+`application/apply.ipynb` walks through the same steps as `run_apply.py`,
+calling the `HistoryMatching` API directly (see "Core Workflow" below). It
+tends to lag behind the PBS path a bit — treat it as the more outdated of
+the two — but it's still the easiest way to poke at intermediate data
+(masks, emulator outputs, hulls) interactively rather than only reading the
+saved diagnostics/log files from a batch run.
+
+### Worker counts
+
+`prepare_case.n_cpus` (GP training parallelism) and `max_workers` (hull
+sampling parallelism) in the config are optional. If either is left out,
+`run_apply.py` falls back to the number of CPUs actually available to the
+process (`len(os.sched_getaffinity(0))`, which reflects a PBS/Slurm job's
+cgroup allocation, not just the whole node's core count). An explicit value
+in the config always takes precedence. The resolved values are printed (and,
+in `"python"` mode, logged to `run_log.txt`) at the start of each run.
+
 ## Repository Layout
 
 ```text
@@ -29,7 +95,7 @@ proj2dhullsampler/
 ├── application/
 │   ├── apply.ipynb        # interactive, notebook-mode walkthrough
 │   ├── apply_config.json  # example config for run_apply.py
-│   ├── apply_config_annotated.txt # Annotated configuraiton file 
+│   ├── apply_config_annotated.txt # field-by-field docs for apply_config.json
 │   └── submit_apply.pbs   # PBS job template for Casper/Derecho
 ├── tests/
 ├── pyproject.toml
@@ -211,63 +277,6 @@ checkup figures during the workflow, `visualize_check` and
 `remove_var2d_auto` or the sensitivity-emulation step); those still go to
 stdout regardless of mode.
 
-## Running without a notebook
-
-`proj2dhullsampler/run_apply.py` replays the same workflow as
-`application/apply.ipynb` as a plain script, driven entirely by a JSON config
-file (see `application/apply_config.json` for a fully worked example,
-including data paths, `obs_dict`, `lat_bins`, manually selected regions,
-thresholds, and `mode`; see `application/apply_config.annotated.jsonc` for a
-field-by-field commented walkthrough of what each key controls — it's a
-documentation-only copy, not something `run_apply.py` reads):
-
-```bash
-python proj2dhullsampler/run_apply.py --config application/apply_config.json
-```
-
-The data-loading and create-or-load-case logic (everything through
-`load_mask`) lives in `proj2dhullsampler/pipeline.py`'s `build_case(config,
-mode)`, which both `run_apply.py` and `apply.ipynb` call, so the two stay in
-sync: a config change only needs to be made once. `run_apply.py` itself
-handles only the CLI-specific parts (argument parsing, the batch diagnostics
-log, and the drop/sample/save steps that follow `build_case`).
-
-If the case directory doesn't exist yet, `build_case` creates and prepares it
-(equivalent to `create_case` + `prepare_case`); if it already exists, it
-loads it instead of re-running the (expensive) emulator training. When
-`config["mode"]` is `"python"`, `run_apply.py` also:
-
-- switches matplotlib to the non-interactive `Agg` backend, since there's no
-  display to show figures on,
-- tees all of the pipeline's `print()` output to
-  `<case_dir>/diagnostics/run_log.txt` in addition to stdout, so the
-  intermediate diagnostic messages survive an unattended/batch run.
-
-### Worker counts
-
-`prepare_case.n_cpus` (GP training parallelism) and `max_workers` (hull
-sampling parallelism) in the config are optional. If either is left out,
-`run_apply.py` falls back to the number of CPUs actually available to the
-process (`len(os.sched_getaffinity(0))`, which reflects a PBS/Slurm job's
-cgroup allocation, not just the whole node's core count). An explicit value
-in the config always takes precedence. The resolved values are printed (and,
-in `"python"` mode, logged to `run_log.txt`) at the start of each run.
-
-### Submitting as a PBS job
-
-`application/submit_apply.pbs` is a template job script for Casper/Derecho:
-
-```bash
-qsub application/submit_apply.pbs
-```
-
-Fill in `<PROJECT_CODE>` and adjust the `#PBS -q`/`select`/`walltime`
-directives for your case size. If you also drop `prepare_case.n_cpus` and
-`max_workers` from `apply_config.json`, the script automatically uses
-whatever CPU count the job was actually granted (see "Worker counts" above)
-instead of requiring the PBS resource request and the JSON config to be kept
-in sync by hand.
-
 ## Public API
 
 The package exposes one public class:
@@ -277,22 +286,6 @@ The package exposes one public class:
 
 The functions in the other package modules support `HistoryMatching` internally
 and are not part of the stable top-level API.
-
-## Installation
-
-Python 3.10+ is required.
-
-Install the package in editable mode:
-
-```bash
-pip install -e .
-```
-
-Install with development dependencies:
-
-```bash
-pip install -e .[dev]
-```
 
 ## Development
 
@@ -306,17 +299,20 @@ pytest
 
 ## Notes
 
-- The application entry points are `application/apply.ipynb` (interactive)
-  and `proj2dhullsampler/run_apply.py` (batch/PBS, driven by
-  `application/apply_config.json`); both cover the same workflow described
-  above via the shared `build_case()` helper.
+- The application entry points are `proj2dhullsampler/run_apply.py`
+  (batch/PBS, driven by `application/apply_config.json`) and
+  `application/apply.ipynb` (interactive); both cover the same workflow
+  described above via the shared `build_case()` helper. See "Running the
+  Pipeline" above.
 - Most geometry operations assume parameters have been normalized to the
   `[0, 1]` range before hull construction and sampling.
-- `apply_config.json`'s top-level `n_pts`/`n_threshold`/`sample_threshold` are
-  passed to both `prepare_for_sampling()` (hull construction/orchestration)
-  and `draw()` (final sample generation). `shape_alpha` is not exposed in the
-  config and stays at `HistoryMatching.prepare_for_sampling`'s default (`5`)
-  for both stages.
+- `apply_config.json` has two separate sets of sampling knobs:
+  `testing_n_pts`/`testing_n_threshold`/`testing_sample_threshold` are passed
+  to `prepare_for_sampling()` (hull construction/orchestration), while
+  `n_pts`/`n_threshold`/`sample_threshold` are passed to `draw()` (final
+  sample generation) — see `apply_config_annotated.txt` for what each one
+  controls. `shape_alpha` is not exposed in the config and stays at
+  `HistoryMatching.prepare_for_sampling`'s default (`5`) for both stages.
 - The emulator "validation" error ratio (`validation_error_ratio.csv`, used
   by `drop_by_emulator_performance`/`emultor_error_ratio_threshold`) is
   currently computed by evaluating each GP on the same data it was trained
