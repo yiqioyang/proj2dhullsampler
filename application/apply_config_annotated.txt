@@ -1,16 +1,16 @@
 {
   "mode": "python",                                                                                   ### python if submitted as a job; otherwise Notebook
-  "working_dir": "/glade/work/qingyuany/repo_data/",
-  "case_name": "proj2d_example_original_ppe",
-  "result_name": "sample1",                                                                    
+  "working_dir": "/glade/work/qingyuany/repo_data/",                                                  ### Working directory
+  "case_name": "proj2d_example_original_ppe",                                                         ### Case name
+  "result_name": "sample1",                                                                           ### Results name
   "data_paths": {
-    "obs_nc": "/glade/u/home/qingyuany/repos/spatialtuning/data/nc_based_data/interpolated_obs.nc",   ### if not available, null                            
-    "obs_tab": null,                                                                                  ### if not available, null
-    "para": "/glade/work/qingyuany/camml_re/v0/parameter_34_100.csv",
-    "ppe_nc": "/glade/work/qingyuany/camml_re/v0/initial_ppe.nc",                                     ### if not available, null
-    "ppe_tab": null                                                                                   ### if not available, null
-  },
-
+    "obs_nc": "/glade/u/home/qingyuany/repos/spatialtuning/data/nc_based_data/interpolated_obs.nc",   ### Gridded obs (dim: lat and lon), null if not available
+    "obs_tab": null,                                                                                  ### Tabular obs if available, null if not available
+    "para": "/glade/work/qingyuany/camml_re/v0/parameter_34_100.csv",                                 ### Tabular PPE or CPE parameters
+    "ppe_nc": "/glade/work/qingyuany/camml_re/v0/initial_ppe.nc",                                     ### Gridded PPE (dim: lat and lon) null if not available
+    "ppe_tab": null                                                                                   ### Tabular PPE, null if not available
+  },                                                                                                  ### First column of tabular data should be the index, which has to match between 
+                                                                                                      ### PPE output and parameters
   "obs_dict": {                                                                                       ### If given obs_nc and ppe_nc, the dictionary mapping the field names
     "SWCF": "swcrf_toa",
     "LWCF": "lwcrf_toa",
@@ -20,32 +20,30 @@
     "FSNTOA": "swabs_toa"
   },
 
-  "lat_bins": {"start": -75, "stop": 75, "step": 10},                                                 ### If given obs_nc and ppe_nc, how the latitude bands are defined (by min, max, and interval)
+  "lat_bins": {"start": -75, "stop": 75, "step": 10},                                                 ### If given obs_nc and ppe_nc, how the latitude bands are defined (by lat min, max, and interval)
 
-  "manual_regions": [                                                                                 ### Particular regions for particular variables of interest
+  "manual_regions": [                                                                                 ### Particular regions of interest.
     {"nm": "PRECT", "lat_min": 4, "lat_max": 7, "lon_min": 1, "lon_max": 359},
     {"nm": "SWCF", "lat_min": 4, "lat_max": 7, "lon_min": 1, "lon_max": 359}
   ],
 
-  "n_sample": 100000,                                                                                 ### Number of generated emulator ensemble
+  "n_sample": 100000,                                                                                 ### Number of generated emulator ensemble members for history matching
 
-  "prepare_case": {"n_cpus": 6, "threshold_levels": [2.0]},                                           ### threshold_levels corresponds to the tau in the manuscript
-  "threshold_level": 2.0,                                                                             ### Identical to the above, here they are specified in two places. This is a decision made during development (for using the method in jupyternotebook mode). Potentially remove it. 
+  "prepare_case": {"n_cpus": 6, "threshold_levels": [2.0]},                                           ### # of cpus and threshold_levels corresponds to the tau in the manuscript. threshold_levels needs to be a list.
+  "threshold_level": 2.0,                                                                             ### Any element within threshold_levels. It looks redundant here because it was designed to swtich between running the method with with and without the jupyternotebook
   "emultor_error_ratio_threshold": 0.20,                                                              ### The ratio of simulated ensemble members that are outside the emulator uncertainty interval defined by tau and the emulator std
-  "visualize_check_vars": ["SWCF_zonal_35to40"],                                                      ### Variables you want to visualize, the result will be stored in the output (variable plotted against the two sensitive parameters)
+  "visualize_check_vars": ["SWCF_zonal_35to40"],                                                      ### Variables you want to visualize, the result will be stored in the output (variable plotted against the two sensitive parameters seperately)
 
-  "vars_to_drop": ["TGCLDLWP"],                                                                       ### Variables to drop manually
+  "vars_to_drop": ["TGCLDLWP"],                                                                       ### Variables to drop manually, if "TGCLDLWP", then every varaible's name begining with "TGCLDLWP" will be drooped
   "n_survive_threshold": 10000,                                                                       ### if a variable has I^k(x_i^k) below n_survive_threshold, it is removed for considertaion (likely structural error)
   "n_survive_threshold_2d": 10000,                                                                    ### Threshold used to exclude variables that share the same sensitive parameters. Can be identical to n_survive_threshold
   "added_number_for_pairs": 100,                                                                      ### A variable assisting the process of excluding the variables, can be fixed to this value
-  "n_var_thre": 1,                                                                                    ### If a parameter pair only has n_var_thre variables, this whole parameter pair is excluded. recommeded value: 0 (this step is skipped) or 1. 
-  "max_workers": 6,                                                                                   ### Number of cpus to be used 
-  "testing_n_pts": 50000,                                                                             ### Value used to integrate different parameter pairs. No need to modify
-  "testing_n_threshold": 5000,                                                                        ### Value used to integrate different parameter pairs. No need to modify
-  "testing_sample_threshold": 1000000,                                                                ### Value used to integrate different parameter pairs. No need to modify
+  "n_var_thre": 1,                                                                                    ### If a parameter pair only has n_var_thre variables or less, this whole parameter pair is excluded. recommeded value: 0 (this step is skipped) or 1. 
+  "max_workers": 6,                                                                                   ### Number of cpus to be used; this redundancy will be removed in later versions.
   "n_pts": 50000,                                                                                     ### Intermediate value for sampling. No need to modify
   "n_threshold": 5000,                                                                                ### Intermediate value for sampling. No need to modify
   "sample_threshold": 1000000000,                                                                     ### Intermediate value for sampling. No need to modify
+  "threshold_ratio_between_para_pairs": 0.02,                                                         ### If the ratio of available samples drops to this threshold or below when moving from one parameter group to another during sampling, it is considered to have structural error and the method will explore the variables to exclude
   "n_max": 1000,                                                                                      ### Max number of samples to store if there is too many
   "top_n": 100                                                                                        ### A smaller number than n_max. The method will output two sets of parameters, one has the size of n_max and the other top_n. The latter is a subset of the former. 
 }
