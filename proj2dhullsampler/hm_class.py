@@ -110,8 +110,7 @@ class HistoryMatching:
         tf_masks = []
 
         for path in mean_paths:
-            var_name_file = path.split("/")[-1].split("_mean_std_")[1]
-            var_name = var_name_file.split(".")[0]
+            var_name = Path(path).stem.split("_mean_std_")[1]
             emulated_mean_std = pd.read_csv(path,index_col=0)
             emulated_mean = emulated_mean_std.iloc[:,0]
             emulated_std = emulated_mean_std.iloc[:,1]            
@@ -152,6 +151,10 @@ class HistoryMatching:
 
     def drop_by_emulator_performance(self, emultor_error_ratio_threshold):
         vars_to_drop = list(self.emulator_error_ratio[self.emulator_error_ratio.iloc[:,0] > emultor_error_ratio_threshold].index)
+        # emulator_error_ratio still lists every diagnostic from load_case(), so a
+        # variable dropped by an earlier step (e.g. drop_by_name) can show up here
+        # again. Keep only columns tf_masks still has, otherwise .drop() raises.
+        vars_to_drop = [v for v in vars_to_drop if v in self.tf_masks.columns]
         self.tf_masks = self.tf_masks.drop(columns = vars_to_drop)
         self.var_nm = list(self.tf_masks.columns)
         self.dropped_vars.by_emulator_performance = vars_to_drop
