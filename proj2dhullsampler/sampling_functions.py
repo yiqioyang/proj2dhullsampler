@@ -8,7 +8,11 @@ from itertools import combinations
 
 
 def sample_from_hull(X, para, h):
-
+    '''
+    X: n x n_para pd dataframe;
+    para: a list containing two parameter pairs;
+    h: the polygon
+    '''
     minx, miny, maxx, maxy = h.bounds
     p1, p2 = para
 
@@ -28,8 +32,18 @@ def sample_from_hull(X, para, h):
 
 
 def _one_batch(args):
-    para_l, para_nm, grouped_hulls, n_pts, seed = args
 
+    para_l, para_nm, grouped_hulls, n_pts, seed = args
+    '''
+    para_l: a list of parameter pairs. within each is a tuple
+    grouped_hulls: the dict of grouped hulls
+    Given a number of points (n_pts), sample the surviving samples 
+    that are within grouped_hulls;
+    for loop driven by para_l, which is a subset or equal to 
+    the keys of grouped_hulls
+    
+    Output: surviving samples as pd dataframe if no surviving samples then none
+    '''
     rng = np.random.default_rng(seed)
 
     
@@ -59,7 +73,24 @@ def sample_from_hulls_n(
 ):
     if max_workers is None:
         max_workers = os.cpu_count() -1     
-    
+
+    '''
+     Parallel rejection sampler: uniform draws that survive every hull in `para_l`.
+
+    Farms batches of `n_pts` uniform points in the normalized parameter cube out
+    to a process pool, filters each batch sequentially through the hulls of
+    `para_l` (see `_one_batch`), and keeps the survivors. Sampling stops on
+    whichever comes first: `n_threshold` survivors collected, or `sample_threshold`
+    points committed - the success target and the give-up budget respectively.
+
+    `para_l` is a list of parameter pairs, in the order the constraints are
+    applied; `para_nm` names every parameter, so it sets the dimensionality of
+    the draws and the columns of the result; `grouped_hulls` maps each pair to
+    its shapely polygon. `max_workers` defaults to one less than the CPU count.
+
+    Returns a DataFrame of the surviving points (columns `para_nm`, index reset),
+    or None if nothing at all survived within the budget.
+    '''
     
     out = []
     count = 0
@@ -139,6 +170,9 @@ def test_ind_vars(X_prev, X, para_nm, tf_masks, grouped_hulls, para, paras_vars,
 
 
 def orchestrate_test(para_seq, X, tf_masks, para_nm, grouped_hulls, paras_vars, n_pts=10000, n_threshold=10000, sample_threshold = 10**7, max_workers=None, threshold_ratio_between_para_pairs = 0.02):
+    '''
+    para_seq = list(self.grouped_hulls.keys()) from hm_class
+    '''
     para_l = []
     
     var_drop = {}

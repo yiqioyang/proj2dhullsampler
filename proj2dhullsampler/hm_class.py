@@ -320,6 +320,12 @@ class HistoryMatching:
 
 
     def build_hulls(self, shape_alpha = 5):
+        '''
+        Create 2d hulls for each parameter pair.
+        Output: 
+        dict with the keys being a tuple of the 2 parameters;
+        The values are polygons
+        '''
         grouped_hulls = {}
 
         for para2, vars in self.paras_vars.items():
