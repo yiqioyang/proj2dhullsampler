@@ -189,8 +189,8 @@ def orchestrate_test(para_seq, X, tf_masks, para_nm, grouped_hulls, paras_vars, 
         
         para_l.append(p)
         out = sample_from_hulls_n(para_l, para_nm, grouped_hulls, n_pts=  n_pts, n_threshold = n_threshold, sample_threshold = sample_threshold, max_workers = max_workers)
-        
-        if (out is None) or (out.shape[0]/prev_sample_size < threshold_ratio_between_para_pairs):
+
+        if (out is None) or (out.shape[0]/prev_sample_size < threshold_ratio_between_para_pairs and len(para_l) > 1):
             print("\t Find nothing or the shrink is too rapid, try to resolve it by breaking the variables into groups")
             out_prev = sample_from_hulls_n(para_l[:-1], para_nm, grouped_hulls, n_pts=  n_pts, n_threshold = n_threshold, max_workers = max_workers, sample_threshold=sample_threshold)
             if (out_prev is None):
@@ -225,9 +225,14 @@ def orchestrate_test(para_seq, X, tf_masks, para_nm, grouped_hulls, paras_vars, 
                 paras_vars[p] = check_pt[0]
                 var_drop[p] = check_pt[1]
                 prev_sample_size = check_pt[3].shape[0]
-                sample_threshold = sample_threshold * min(100.0/prev_sample_size, 100)
+                if prev_sample_size < 100:
+                    error_sample_size_scaling = min(100.0/prev_sample_size, 100)
+                    sample_threshold = sample_threshold * error_sample_size_scaling
+                    prev_sample_size = prev_sample_size * error_sample_size_scaling
+                    print(f' \t \t \t We also increase the sample threshold by {error_sample_size_scaling}')
+
                 print(f'\t \t \t After exluding some variables, the number of surviving samples is {prev_sample_size}')
-                print(f' \t \t \t We also increase the sample threshold by {min(100.0/prev_sample_size, 100)}')
+                
 
                 
         else:
