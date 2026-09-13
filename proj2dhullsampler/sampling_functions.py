@@ -155,6 +155,8 @@ def test_ind_vars(X_prev, X, para_nm, tf_masks, grouped_hulls, para, paras_vars,
             attempt = sample_from_hull(X_prev, para, hull_sub)
             #xxx
             if (attempt is not None) and (not attempt.empty) and (attempt.shape[0]/ X_prev.shape[0] > threshold_ratio_between_para_pairs):
+            ## Might have been too redundant here
+            ## Sept 13, 2026
                 print(f'\t \t \t \t Found the good variable combo')
                 drop_vars = [x for x in vars if x not in list(var_comb)]
                 return list(var_comb), drop_vars, hull_sub, attempt
@@ -184,20 +186,23 @@ def orchestrate_test(para_seq, X, tf_masks, para_nm, grouped_hulls, paras_vars, 
         sample_threshold = int(sample_threshold)
         prev_sample_size = int(prev_sample_size)
         print(f'Running {p}, the {p_count}th simulation')
-        print(f'Current sampling size is {sample_threshold}')
-        print(f'Previous sample size is {prev_sample_size}')
+        if p_count > 0:
+            print(f'Current sampling size is {sample_threshold}')
+            print(f'Previous sample size is {prev_sample_size}')
         
         para_l.append(p)
         out = sample_from_hulls_n(para_l, para_nm, grouped_hulls, n_pts=  n_pts, n_threshold = n_threshold, sample_threshold = sample_threshold, max_workers = max_workers)
 
         if (out is None) or (out.shape[0]/prev_sample_size < threshold_ratio_between_para_pairs and len(para_l) > 1):
-            print("\t Find nothing or the shrink is too rapid, try to resolve it by breaking the variables into groups")
+            print("\t Find nothing or the shrink is too rapid, try resolving it by breaking the variables into groups")
             out_prev = sample_from_hulls_n(para_l[:-1], para_nm, grouped_hulls, n_pts=  n_pts, n_threshold = n_threshold, max_workers = max_workers, sample_threshold=sample_threshold)
             if (out_prev is None):
                 raise ValueError("out_prev is None")
 
+            
             print(f'The size of out_prev is {out_prev.shape[0]}')
             if (out_prev.shape[0] < 100) & (out_prev.shape[0] > 0) & (out_prev is not None):
+                ## This if is for the case where the out_prev is too small, we need to increase it so that the test_ind_vars below is more robust
                 error_sample_size_scaling = min(100.0/out_prev.shape[0], 100)
                 sample_threshold = sample_threshold * error_sample_size_scaling
                 out_prev = sample_from_hulls_n(para_l[:-1], para_nm, grouped_hulls, n_pts=  n_pts, n_threshold = n_threshold, max_workers = max_workers, sample_threshold=sample_threshold)
@@ -231,7 +236,7 @@ def orchestrate_test(para_seq, X, tf_masks, para_nm, grouped_hulls, paras_vars, 
                     prev_sample_size = prev_sample_size * error_sample_size_scaling
                     print(f' \t \t \t We also increase the sample threshold by {error_sample_size_scaling}')
 
-                print(f'\t \t \t After exluding some variables, the number of surviving samples is {prev_sample_size}')
+                print(f'\t \t \t After exluding some variables, the (expected) number of surviving samples is {prev_sample_size}')
                 
 
                 

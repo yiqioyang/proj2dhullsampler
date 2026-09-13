@@ -290,6 +290,7 @@ class HistoryMatching:
                     no_overlap_2d_var = list(under_threshold[['var1', 'var2']].stack().value_counts()[:1].index)
                     print(f'Drop variable {no_overlap_2d_var}')
                     self.drop_no_overlap2d_vars(no_overlap_2d_var)
+                    ##pair_wise_threshold = overlapping_threshold ###?? xx
 
                 else:
                     print('Need to increase threshold to exclude more samples')
@@ -362,6 +363,13 @@ class HistoryMatching:
         self.dropped_vars.during_iteration = check[3]
         self.specifications.dropped_during_orchastrate = check[3]
 
+        ## Lines below are not necessary, added here to be consistent with other functions that drop the variables
+        ## Sept 13, 2026
+        vars_to_drop = [x for lst in check[3].values() for x in lst]
+        self.tf_masks = self.tf_masks.drop(columns = vars_to_drop)
+        self.var_nm = list(self.tf_masks.columns)
+        self.update_meta()
+        
 
     def prepare_for_sampling(self, shape_alpha = 5, n_pts = 10000, n_threshold = 1000, sample_threshold = 10**5, max_workers = 2, threshold_ratio_between_para_pairs = 0.02):
         self.build_hulls(shape_alpha)
