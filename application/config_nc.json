@@ -1,28 +1,30 @@
 {
   "mode": "python",                                                                                   
   "working_dir": "/glade/work/qingyuany/repo_data/",
-  "case_name": "test_iteration1_debug10",
-  "result_name": "iteration1",                                                                    
+  "case_name": "camml_test",
+  "result_name": "initial_ppe",                                                                    
   "data_paths": {
-    "obs_nc": "/glade/u/home/qingyuany/repos/spatialtuning/data/nc_based_data/interpolated_obs.nc",   
+    "obs_nc": "/glade/u/home/qingyuany/satellite_obs/obs_interp_cam6.nc",   
     "obs_tab": null,                                                                                  
-    "para": "/glade/work/qingyuany/camml_proj/organized_manu_based/iteration1_para.csv",
-    "ppe_nc": "/glade/work/qingyuany/camml_proj/organized_manu_based/iteration1_ppe.nc",                                     
-    "ppe_tab": null                                                                                   
+    "para": "/glade/work/qingyuany/camml_proj/organized_manu_based/original_para.csv",
+    "ppe_nc": "/glade/work/qingyuany/camml_proj/organized_manu_based/original_ppe.nc",                                     
+    "ppe_tab": null                                                                                  
   },
 
-  "obs_dict": {                                                                                       
-    "SWCF": "swcrf_toa",
-    "LWCF": "lwcrf_toa",
+  "obs_dict": {
+    "SWCF": "swcrf_toa", 
+    "LWCF": "lwcrf_toa", 
+    "TGCLDLWP": "clwp", 
     "TMQ": "pwv",
-    "FLUT": "olr",
+    "CLDTOT_ISCCP": "clt_isccp", 
+    "FLUT": "olr", 
     "PRECT": "pr",
-    "FSNTOA": "swabs_toa"
-  },
+    "FSNTOA": "swabs_toa"}
+,
 
-  "lat_bins": {"start": -70, "stop": 70, "step": 5},                                                 
+  "lat_bins": {"start": -75, "stop": 75, "step": 10},                                                 
 
-  "manual_regions": [                                                                                 
+  "manual_regions": [
     {"nm": "PRECT", "lat_min": 4, "lat_max": 7, "lon_min": 1, "lon_max": 359},
     {"nm": "SWCF", "lat_min": 4, "lat_max": 7, "lon_min": 1, "lon_max": 359}
   ],
@@ -31,18 +33,18 @@
 
   "prepare_case": {"n_cpus": 16, "threshold_levels": [2.0]},                                           
   "threshold_level": 2.0,                                                                             
-  "emultor_error_ratio_threshold": 0.20,                                                              
-  "visualize_check_vars": ["SWCF_zonal_35to40","LWCF_zonal_35to40"],                                                      
+  "emultor_error_ratio_threshold": 0.05,                                                              
+  "visualize_check_vars": ["PRECT_zonal_55to65", "SWCF_zonal_-25to-15", "LWCF_zonal_25to35", "FSNTOA_zonal_45to55", "FSNTOA_zonal_35to45", "FSNTOA_zonal_45to55"],                                                      
 
-  "vars_to_drop": ["TGCLDLWP"],                                                                       
-  "n_survive_threshold": 10000,                                                                       
-  "n_survive_threshold_2d": 10000,                                                                    
+  "vars_to_drop": ["CLDTOT_ISCCP"],
+  "n_survive_threshold": 15000,                                                                       
+  "n_survive_threshold_2d": 15000,                                                                    
   "added_number_for_pairs": 100,                                                                      
   "n_var_thre": 1,                                                                                    
   "max_workers": 16,                                                                                                                                          
   "n_pts": 50000,                                                                                     
   "n_threshold": 200,
-  "threshold_ratio_between_para_pairs": 0.02,
+  "threshold_ratio_between_para_pairs": 0.05,
   "sample_threshold": 1000000000,                                                                     
   "n_max": 1000,                                                                                      
   "top_n": 100                                                                                        

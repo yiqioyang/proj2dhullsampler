@@ -110,8 +110,7 @@ class HistoryMatching:
         tf_masks = []
 
         for path in mean_paths:
-            var_name_file = path.split("/")[-1].split("_mean_std_")[1]
-            var_name = var_name_file.split(".")[0]
+            var_name = Path(path).stem.split("_mean_std_")[1]
             emulated_mean_std = pd.read_csv(path,index_col=0)
             emulated_mean = emulated_mean_std.iloc[:,0]
             emulated_std = emulated_mean_std.iloc[:,1]            
@@ -152,6 +151,10 @@ class HistoryMatching:
 
     def drop_by_emulator_performance(self, emultor_error_ratio_threshold):
         vars_to_drop = list(self.emulator_error_ratio[self.emulator_error_ratio.iloc[:,0] > emultor_error_ratio_threshold].index)
+        # emulator_error_ratio still lists every diagnostic from load_case(), so a
+        # variable dropped by an earlier step (e.g. drop_by_name) can show up here
+        # again. Keep only columns tf_masks still has, otherwise .drop() raises.
+        vars_to_drop = [v for v in vars_to_drop if v in self.tf_masks.columns]
         self.tf_masks = self.tf_masks.drop(columns = vars_to_drop)
         self.var_nm = list(self.tf_masks.columns)
         self.dropped_vars.by_emulator_performance = vars_to_drop
@@ -287,6 +290,7 @@ class HistoryMatching:
                     no_overlap_2d_var = list(under_threshold[['var1', 'var2']].stack().value_counts()[:1].index)
                     print(f'Drop variable {no_overlap_2d_var}')
                     self.drop_no_overlap2d_vars(no_overlap_2d_var)
+                    ##pair_wise_threshold = overlapping_threshold ###?? xx
 
                 else:
                     print('Need to increase threshold to exclude more samples')
@@ -317,6 +321,12 @@ class HistoryMatching:
 
 
     def build_hulls(self, shape_alpha = 5):
+        '''
+        Create 2d hulls for each parameter pair.
+        Output: 
+        dict with the keys being a tuple of the 2 parameters;
+        The values are polygons
+        '''
         grouped_hulls = {}
 
         for para2, vars in self.paras_vars.items():
@@ -353,6 +363,13 @@ class HistoryMatching:
         self.dropped_vars.during_iteration = check[3]
         self.specifications.dropped_during_orchastrate = check[3]
 
+        ## Lines below are not necessary, added here to be consistent with other functions that drop the variables
+        ## Sept 13, 2026
+        vars_to_drop = [x for lst in check[3].values() for x in lst]
+        self.tf_masks = self.tf_masks.drop(columns = vars_to_drop)
+        self.var_nm = list(self.tf_masks.columns)
+        self.update_meta()
+        
 
     def prepare_for_sampling(self, shape_alpha = 5, n_pts = 10000, n_threshold = 1000, sample_threshold = 10**5, max_workers = 2, threshold_ratio_between_para_pairs = 0.02):
         self.build_hulls(shape_alpha)
@@ -376,6 +393,10 @@ class HistoryMatching:
 
 
     def save_samples_specifications(self, result_name, top_n = 100):
+        '''
+        Write all drawn samples, plus the FIRST `top_n` of them as a smaller subset
+        (*_topn_*). The samples are not ranked, so "top n" means "first n", not "best n".
+        '''
 
         self.result_name = result_name
 
@@ -448,6 +469,7 @@ class HistoryMatching:
     def compare_with_original(self, bins=30, density=True):
 
         dfs = [self.ppe_para, self.results.realscale_samples]
+        labels = ["original PPE", "drawn samples"]
 
         cols = dfs[0].columns
         ncols = 5
@@ -459,7 +481,7 @@ class HistoryMatching:
         for ax, c in zip(axes.ravel(), cols):
             # histograms
             for i, df in enumerate(dfs):
-                ax.hist(df[c].dropna(), bins=bins, density=density, alpha=0.4, label=f"hist{i}")
+                ax.hist(df[c].dropna(), bins=bins, density=density, alpha=0.4, label=labels[i])
             # vlines
             ax.set_title(c)
 

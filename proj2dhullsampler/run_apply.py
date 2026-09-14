@@ -1,11 +1,13 @@
-"""Config-driven, notebook-free replay of apply.ipynb.
+"""Config-driven run of the full pipeline (the entry point used by submit_apply.pbs).
 
-Usage:
-    python run_apply.py --config apply_config.json
+Usage (from application/):
+    python ../proj2dhullsampler/run_apply.py --config config_table.json
 
 All paths, thresholds, and the "notebook" vs "python" mode flag live in the
 config file instead of being hardcoded, so a run can be reproduced or tuned
-without touching this script. See apply_config.json for the expected shape.
+without touching this script. See application/config_table.json and
+application/config_nc.json for examples, and application/config_annotated.jsonc
+for what every key means.
 
 In "python" mode, checkup figures that would normally display inline in the
 notebook are instead written as PNGs to <working_dir>/<case_name>/diagnostics/,
@@ -16,6 +18,7 @@ and all print() output from the pipeline is additionally teed to
 import argparse
 import json
 import sys
+import traceback
 from pathlib import Path
 
 
@@ -89,6 +92,110 @@ def _run(config, mode, working_dir, case_name):
             log_file_box[0].close()
 
 
+def _write_constraint_diagnostics(test_case, opts):
+    """Per-pair constraint animations, the interlock PDF and the dropped-variable
+    pages, into <case>/diagnostics/.
+
+    Called only after the samples have been written - which the interlock figure
+    also *requires*, since its right-hand column is the drawn samples themselves
+    - and each figure is guarded on its own: these are diagnostics, so a
+    plotting failure must never take down a job whose actual results are already
+    safely on disk.
+
+    `opts` is the optional "constraint_diagnostics" block of the config; an
+    empty dict writes the animations, the interlock PDF and the dropped-variable
+    pages with default settings. See application/config_annotated.jsonc for the
+    fields.
+    """
+    from proj2dhullsampler.history_matching_animation import (
+        animate_pair_constraints,
+        plot_constraint_interlock,
+        plot_dropped_constraints,
+        save_pair_frames,
+    )
+
+    opts = dict(opts or {})
+
+    if not opts.get("enabled", True):
+        print("constraint_diagnostics disabled in config; skipping.")
+        return
+
+    def _guarded(label, fn):
+        print(f"--- constraint diagnostics: {label} ---")
+        try:
+            fn()
+        except Exception:
+            # Deliberately swallowed, but never silently: the samples are
+            # already saved, so this must not fail the job.
+            print(f"WARNING: {label} failed; continuing. Traceback follows.")
+            traceback.print_exc(file=sys.stdout)
+
+    def _kw(*names):
+        """Config keys -> keyword arguments, skipping anything not set.
+
+        A name may be given as "config_key:argument_name" where the two differ
+        (the interlock PDF wants its own point budget, separate from the
+        animations').
+        """
+        out = {}
+        for name in names:
+            key, _, arg = name.partition(":")
+            if key in opts:
+                out[arg or key] = opts[key]
+        return out
+
+    if opts.get("animations", True):
+        _guarded(
+            "per-pair animations",
+            lambda: animate_pair_constraints(
+                test_case,
+                mode="python",  # run_apply.py is batch: always write files
+                **_kw("fmt", "fps", "dpi", "max_points", "var_order", "show_hull"),
+            ),
+        )
+
+    if opts.get("frames", False):
+        _guarded(
+            "per-pair still frames",
+            lambda: save_pair_frames(
+                test_case, **_kw("dpi", "max_points", "var_order", "show_hull")
+            ),
+        )
+
+    if opts.get("interlock", True):
+        def _interlock():
+            import matplotlib.pyplot as plt
+
+            fig = plot_constraint_interlock(
+                test_case,
+                **_kw(
+                    "n_rows",
+                    "interlock_max_points:max_points",
+                    "panel_size",
+                    "show_hull",
+                    "sort_by",
+                ),
+            )
+            plt.close(fig)
+
+        _guarded("constraint interlock PDF", _interlock)
+
+    if opts.get("dropped", True):
+        _guarded(
+            "dropped-variable constraints",
+            lambda: plot_dropped_constraints(
+                test_case,
+                mode="python",  # batch: always write files
+                **_kw(
+                    "dropped_ncols:ncols",
+                    "dropped_rows_per_page:rows_per_page",
+                    "dropped_max_vars_per_panel:max_vars_per_panel",
+                    "show_hull",
+                ),
+            ),
+        )
+
+
 def _run_pipeline(config, mode, working_dir, case_name, log_file_box):
     from proj2dhullsampler.pipeline import build_case, default_worker_count
 
@@ -137,6 +244,10 @@ def _run_pipeline(config, mode, working_dir, case_name, log_file_box):
 
     test_case.save_samples_specifications(config["result_name"], top_n=config["top_n"])
     test_case.compare_with_original()
+
+    # Last: everything above has already been written, so these figures are
+    # free to fail without costing the run anything.
+    _write_constraint_diagnostics(test_case, config.get("constraint_diagnostics", {}))
 
     print("Done.")
 

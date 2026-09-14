@@ -2,8 +2,8 @@
 
 build_case() loads the data described by a config dict and returns a ready
 HistoryMatching case (created + prepared, or loaded from disk if it already
-exists). It is used both by run_apply.py (batch/CLI) and by apply.ipynb
-(interactive), so the load/prepare logic only needs to be written once.
+exists). It is used both by run_apply.py (batch/CLI) and by tests/apply.ipynb
+(interactive debugging), so the load/prepare logic only needs to be written once.
 """
 
 import os
@@ -31,7 +31,8 @@ def default_worker_count():
 def build_case(config, mode="notebook", on_created=None):
     """Load data per `config` and return a created/prepared or loaded HistoryMatching case.
 
-    `config` has the same shape as apply_config.json (data_paths, lat_bins,
+    `config` has the same shape as application/config_table.json and
+    application/config_nc.json (data_paths, lat_bins,
     manual_regions, obs_dict, n_sample, prepare_case, threshold_level, ...).
     `mode` controls HistoryMatching's own notebook/python behavior (e.g.
     plt.show() vs. saving figures to disk) and defaults to "notebook" for
