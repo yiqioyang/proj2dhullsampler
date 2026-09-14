@@ -1,0 +1,209 @@
+// =============================================================================
+// Annotated run configuration - DOCUMENTATION ONLY
+// =============================================================================
+// This file explains every key used by config_table.json / config_nc.json.
+// It is JSON with comments (.jsonc), so run_apply.py cannot read it directly:
+// copy one of the two real configs and edit that instead.
+//
+// Relative paths are resolved from the directory the job runs in. With
+// submit_apply.pbs that is application/ (the job does `cd $PBS_O_WORKDIR`),
+// so submit from inside application/.
+// =============================================================================
+{
+  // ---------------------------------------------------------------------------
+  // Run and case
+  // ---------------------------------------------------------------------------
+
+  // "python" for batch (qsub) runs: figures are saved to <case>/diagnostics/
+  // and all printed output is also written to <case>/diagnostics/run_log.txt.
+  // ("notebook" shows figures inline and is only for debugging in tests/.)
+  "mode": "python",
+
+  // The case directory is <working_dir>/<case_name>.
+  // If it does not exist, it is created: features are built, emulators are
+  // trained and pass/fail masks are written (the slow part).
+  // If it already exists, it is LOADED as-is and nothing is retrained. Use a
+  // new case_name whenever the input data or emulator settings change.
+  "working_dir": "/path/to/your/work_dir",
+  "case_name": "linear_test",
+
+  // Prefix of the result files in <case>/output/. Must be new for every run on
+  // the same case, otherwise the run stops with FileExistsError (after drawing).
+  "result_name": "result",
+
+  // ---------------------------------------------------------------------------
+  // Input data. Give tables, NetCDF files, or both (use null for unused ones).
+  // ---------------------------------------------------------------------------
+  "data_paths": {
+    // Required. CSV, first column = ensemble member id, other columns = the
+    // parameters (real units). No parameter may be constant across members.
+    "para": "../data/linear_example/X.csv",
+
+    // Table input (see config_table.json):
+    //   ppe_tab: CSV, first column = member id (same ids as "para"),
+    //            other columns = one scalar diagnostic each.
+    //   obs_tab: CSV, first column = diagnostic name (same names as the
+    //            ppe_tab columns), second column = observed value.
+    "ppe_tab": "../data/linear_example/Y.csv",
+    "obs_tab": "../data/linear_example/y_true.csv",
+
+    // NetCDF input (see config_nc.json):
+    //   ppe_nc: variables on (member, lat, lon); the member dimension (any
+    //           name) must carry the same ids, in the same order, as "para".
+    //   obs_nc: observed fields on the same lat/lon grid.
+    // Scalar diagnostics are derived from them with obs_dict, lat_bins and
+    // manual_regions below. If tables are also given, both sets of
+    // diagnostics are used together.
+    "ppe_nc": null,
+    "obs_nc": null
+  },
+
+  // NetCDF only (else null). Model variable name -> observation variable name.
+  // e.g. {"SWCF": "swcrf_toa", "PRECT": "pr"}
+  "obs_dict": null,
+
+  // NetCDF only (else null). Zonal-mean bands. Band edges are
+  // numpy.arange(start, stop, step), so "stop" itself is not an edge.
+  // e.g. {"start": -75, "stop": 75, "step": 10} gives diagnostics named
+  // SWCF_zonal_-75to-65, ..., SWCF_zonal_55to65.
+  "lat_bins": null,
+
+  // NetCDF only (else null). Extra box averages, named
+  // local_<nm>_<lat_min>_<lat_max>_<lon_min>_<lon_max>.
+  // Keep the keys in exactly this order: nm, lat_min, lat_max, lon_min, lon_max.
+  // e.g. [{"nm": "PRECT", "lat_min": 4, "lat_max": 7, "lon_min": 1, "lon_max": 359}]
+  "manual_regions": null,
+
+  // ---------------------------------------------------------------------------
+  // Emulation and pass/fail masks (used only when the case is created)
+  // ---------------------------------------------------------------------------
+
+  // Number of uniform random parameter sets (in the 0-1 normalized parameter
+  // cube) on which every emulator is evaluated. More = smoother regions, but
+  // slower and larger files.
+  "n_sample": 100000,
+
+  "prepare_case": {
+    // Parallel jobs for emulator training. Optional: if left out, the number
+    // of CPUs granted to the PBS job is used.
+    "n_cpus": 32,
+    // Masks are written for every value in this list, so a loaded case can
+    // later be re-run with any of them without retraining.
+    "threshold_levels": [2.5]
+  },
+
+  // k in the pass test: a parameter set passes a diagnostic if
+  //   emulator_mean - k * emulator_std < observation < emulator_mean + k * emulator_std
+  // Must be one of prepare_case.threshold_levels. Larger k = looser constraint.
+  // (When the case is created, k is also used for the emulator check below.)
+  "threshold_level": 2.5,
+
+  // Diagnostics to plot as an emulator sanity check
+  // (<case>/diagnostics/visualize_check_<name>.png). Only when the case is created.
+  "visualize_check_vars": ["y0", "y1", "y2", "y3", "y4", "y5"],
+
+  // ---------------------------------------------------------------------------
+  // Level 1: dropping single diagnostics
+  // ---------------------------------------------------------------------------
+
+  // Diagnostics to exclude by hand. Each entry is a name PREFIX:
+  // "CLDTOT_ISCCP" drops every CLDTOT_ISCCP_zonal_* diagnostic.
+  "vars_to_drop": [],
+
+  // Drop a diagnostic if its emulator misses more than this fraction of the
+  // PPE members (member outside mean +/- k * std). Note: checked on the
+  // training members themselves, so it rarely drops anything.
+  // (The key name really is spelled "emultor".)
+  "emultor_error_ratio_threshold": 0.20,
+
+  // Drop a diagnostic if fewer than this many of the n_sample points pass it:
+  // the observation is (almost) out of the model's reach, i.e. a sign of
+  // structural error. Diagnostics that ALL points pass are dropped as well,
+  // because they constrain nothing.
+  "n_survive_threshold": 5000,
+
+  // ---------------------------------------------------------------------------
+  // Level 2: pairwise constraints (diagnostics sharing a parameter pair)
+  // ---------------------------------------------------------------------------
+
+  // Every diagnostic depends on its 2 most sensitive parameters. Diagnostics
+  // with the same pair are combined. If fewer than this many points pass ALL
+  // diagnostics of a pair, they contradict each other: the diagnostic most
+  // involved in the conflicting combinations is dropped, and the check repeats.
+  "n_survive_threshold_2d": 5000,
+
+  // When a pair's combined count is too low but no two-diagnostic combination
+  // is below the threshold (a 3-way conflict), the pairwise threshold is raised
+  // by this amount until one qualifies.
+  "added_number_for_pairs": 100,
+
+  // Drop parameter pairs that are backed by this many diagnostics or fewer.
+  // 0 keeps every pair; 1 drops pairs with a single diagnostic.
+  "n_var_thre": 0,
+
+  // ---------------------------------------------------------------------------
+  // Level 3: interlock across pairs, and drawing the final samples
+  // ---------------------------------------------------------------------------
+
+  // Parallel sampling processes. Optional: defaults to the job's CPU count.
+  "max_workers": 32,
+
+  // Pairs are added one at a time (pairs with the most diagnostics first).
+  // If adding a pair keeps less than this fraction of the parameter sets that
+  // passed all earlier pairs, the pair conflicts with them: the run first
+  // tries to keep a subset of the pair's diagnostics, otherwise skips the pair.
+  // 0.02 = "a new pair may remove at most 98% of what is left".
+  "threshold_ratio_between_para_pairs": 0.02,
+
+  // Final draw: uniform points in the parameter cube, kept only if they fall
+  // inside every pair's allowed region.
+  //   n_pts:            points per batch (one batch per worker)
+  //   n_threshold:      stop once about this many samples are found
+  //                     (the last round of batches may overshoot it)
+  //   sample_threshold: give up after trying this many points in total
+  //   n_max:            keep at most this many samples
+  "n_pts": 500000,
+  "n_threshold": 300,
+  "sample_threshold": 10000000000,
+  "n_max": 1000,
+
+  // The first top_n samples are also written to *_topn_para_realscale.csv/.nc.
+  // Samples are not ranked; this is simply a smaller subset.
+  "top_n": 100,
+
+  // ---------------------------------------------------------------------------
+  // Diagnostic figures (optional block; every key has a default)
+  // ---------------------------------------------------------------------------
+  // Written after the samples are saved. A failing figure prints a warning
+  // but never fails the run.
+  "constraint_diagnostics": {
+    "enabled": true,        // false skips all figures below
+
+    // One animation per pair: diagnostics switched on one at a time
+    // -> diagnostics/animations/pair_NN_<p1>__<p2>.gif
+    "animations": true,
+    "frames": false,        // also save each step as a still PNG -> diagnostics/frames/
+    "fmt": "gif",           // "gif", or "mp4" (needs ffmpeg)
+    "fps": 1.2,
+    "dpi": 110,
+    "max_points": 3000,     // points plotted per layer (for file size only)
+    "var_order": "given",   // "given", "restrictive_first", "restrictive_last"
+    "show_hull": true,      // draw the alpha-shape outline (also used by the
+                            // interlock and dropped-variable figures)
+
+    // Each pair alone vs. the samples actually drawn
+    // -> diagnostics/constraint_interlock.pdf
+    "interlock": true,
+    "n_rows": null,               // only the first n pairs; null = all
+    "sort_by": "order",           // "order" (sampler order) or "shrinkage"
+    "interlock_max_points": 1500,
+    "panel_size": 2.4,            // inches per panel
+
+    // Regions of the dropped diagnostics, drawn on their own pair
+    // -> diagnostics/dropped_vars/page_NN.png and dropped_constraints.pdf
+    "dropped": true,
+    "dropped_ncols": 4,
+    "dropped_rows_per_page": 3,
+    "dropped_max_vars_per_panel": 6
+  }
+}

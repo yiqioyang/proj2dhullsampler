@@ -393,6 +393,10 @@ class HistoryMatching:
 
 
     def save_samples_specifications(self, result_name, top_n = 100):
+        '''
+        Write all drawn samples, plus the FIRST `top_n` of them as a smaller subset
+        (*_topn_*). The samples are not ranked, so "top n" means "first n", not "best n".
+        '''
 
         self.result_name = result_name
 
@@ -465,6 +469,7 @@ class HistoryMatching:
     def compare_with_original(self, bins=30, density=True):
 
         dfs = [self.ppe_para, self.results.realscale_samples]
+        labels = ["original PPE", "drawn samples"]
 
         cols = dfs[0].columns
         ncols = 5
@@ -476,7 +481,7 @@ class HistoryMatching:
         for ax, c in zip(axes.ravel(), cols):
             # histograms
             for i, df in enumerate(dfs):
-                ax.hist(df[c].dropna(), bins=bins, density=density, alpha=0.4, label=f"hist{i}")
+                ax.hist(df[c].dropna(), bins=bins, density=density, alpha=0.4, label=labels[i])
             # vlines
             ax.set_title(c)
 

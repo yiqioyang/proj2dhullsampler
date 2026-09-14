@@ -24,3 +24,7 @@ untracked_folders/
 # OS/editor noise
 .DS_Store
 *.swp
+
+# Build and job logs
+*.egg-info/
+proj.log

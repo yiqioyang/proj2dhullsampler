@@ -1,11 +1,13 @@
-"""Config-driven, notebook-free replay of apply.ipynb.
+"""Config-driven run of the full pipeline (the entry point used by submit_apply.pbs).
 
-Usage:
-    python run_apply.py --config apply_config.json
+Usage (from application/):
+    python ../proj2dhullsampler/run_apply.py --config config_table.json
 
 All paths, thresholds, and the "notebook" vs "python" mode flag live in the
 config file instead of being hardcoded, so a run can be reproduced or tuned
-without touching this script. See apply_config.json for the expected shape.
+without touching this script. See application/config_table.json and
+application/config_nc.json for examples, and application/config_annotated.jsonc
+for what every key means.
 
 In "python" mode, checkup figures that would normally display inline in the
 notebook are instead written as PNGs to <working_dir>/<case_name>/diagnostics/,
@@ -102,7 +104,8 @@ def _write_constraint_diagnostics(test_case, opts):
 
     `opts` is the optional "constraint_diagnostics" block of the config; an
     empty dict writes the animations, the interlock PDF and the dropped-variable
-    pages with default settings. See apply_config_annotated.txt for the fields.
+    pages with default settings. See application/config_annotated.jsonc for the
+    fields.
     """
     from proj2dhullsampler.history_matching_animation import (
         animate_pair_constraints,

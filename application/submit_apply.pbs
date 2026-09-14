@@ -1,7 +1,11 @@
 #!/bin/bash
-### Fill in <PROJECT_CODE> below with your NCAR project allocation, and adjust
-### the queue/select/walltime for the size of the case you're running. Submit with:
-###   qsub submit_apply.pbs
+### Before submitting:
+###   - replace the project code after "#PBS -A" with your NCAR project allocation;
+###   - adjust the queue/select/walltime for the size of the case you're running;
+###   - point "conda activate" at your own environment;
+###   - choose the config (config_table.json or config_nc.json) on the last line.
+### Submit from the repository root or from application/:
+###   qsub application/submit_apply.pbs      (or: cd application && qsub submit_apply.pbs)
 
 #PBS -N proj2dhullsampler_apply
 #PBS -A P93300313
@@ -11,13 +15,19 @@
 #PBS -j oe
 #PBS -o proj.log
 
-# n_cpus/max_workers in apply_config.json are optional: if left out, run_apply.py
-# detects this job's actual CPU allocation (via sched_getaffinity, which reflects
-# select=...:ncpus=N above) and uses that instead. Set them explicitly in the
-# config only if you want a specific worker count regardless of what was requested
-# here.
+# n_cpus/max_workers in config_table.json / config_nc.json are optional: if left
+# out, run_apply.py detects this job's actual CPU allocation (via sched_getaffinity,
+# which reflects select=...:ncpus=N above) and uses that instead. Set them
+# explicitly in the config only if you want a specific worker count regardless of
+# what was requested here.
 
 cd "$PBS_O_WORKDIR"
+
+# Run from application/ whichever directory qsub was called from: the script path
+# below and the relative data paths in the configs are relative to it.
+if [ -d application ] && [ -f application/submit_apply.pbs ]; then
+    cd application
+fi
 
 # Plain "conda activate" fails in a non-interactive batch shell ("invalid choice:
 # 'activate'") unless the conda shell hook is sourced first.
@@ -30,4 +40,3 @@ conda activate /glade/work/qingyuany/conda-envs/ml_env
 
 #python ../proj2dhullsampler/run_apply.py --config config_table.json
 python ../proj2dhullsampler/run_apply.py --config config_nc.json
-

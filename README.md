@@ -1,320 +1,276 @@
 # proj2dhullsampler
 
-`proj2dhullsampler` is a Python package for parameter-space screening and
-history matching of spatial climate diagnostics. It includes utilities for:
+**Find the parameter values of a model that are consistent with observations,
+using a perturbed parameter ensemble (PPE) and simple 2-D pictures.**
 
-- preparing observational and PPE-derived feature tables
-- training and applying Gaussian process emulators based on the most two sensitive parameters
-- building boolean masks of acceptable simulations
-- grouping diagnostics by sensitive parameter pairs
-- constructing alpha-shape hulls in normalized parameter space
-- drawing new candidate parameter sets from the surviving region
+You give the package:
 
-## Installation
+- a PPE: parameter values and model output for each ensemble member, and
+- observations of the same quantities.
 
-Python 3.10+ is required.
+It returns a set of new parameter values (real units, CSV and NetCDF) that are
+consistent with *all* the observations it could trust, plus figures that show
+why each parameter ended up where it did.
 
-Install the package in editable mode:
+<p align="center">
+  <img src="figs/compare_with_original.png" width="900"
+       alt="Parameter distributions: original PPE vs. drawn samples">
+</p>
+
+*Result for the synthetic linear example (`data/linear_example`, 20 parameters,
+30 outputs). Blue: the original PPE. Orange: the parameter sets drawn by the
+method. Parameters that the outputs constrain (e.g. `x0`,
+`x1`, `x2`, `x3`, `x5`, `x13`, `x14`) collapse around their true values
+(`x0 = 0.34`, `x1 = -0.89`, `x2 = 0.67`, `x3 = 0.62`, `x5 = -0.78`, ...); the
+others stay close to the original spread.*
+
+---
+
+## Contents
+
+1. [How the method works](#how-the-method-works)
+2. [Quick start](#quick-start)
+3. [Configuring a run](#configuring-a-run)
+4. [What you get](#what-you-get)
+5. [Repository layout](#repository-layout)
+6. [Development and testing](#development-and-testing)
+
+---
+
+## How the method works
+
+All parameters are rescaled to 0-1 with the PPE minimum and maximum.
+
+### 1. Pairwise constraints: one 2-D region per parameter pair
+
+For every scalar diagnostic (e.g. "zonal-mean precipitation, 30-40N"):
+
+1. Find the **two parameters it is most sensitive to**.
+2. Train a Gaussian-process **emulator** on those two parameters.
+3. Evaluate it on many random parameter sets. A set **passes** if the
+   observation lies within the emulator's mean ± *k* standard deviations
+   (`threshold_level`).
+
+Diagnostics that share the same parameter pair are combined: a point must pass
+all of them. The passing points form a region in that pair's square, outlined by
+an alpha-shape hull.
+
+<p align="center">
+  <img src="figs/pair_00_x3__x4.gif" width="720"
+       alt="Diagnostics y12, y10 and y9 switched on one at a time on the x3-x4 square">
+</p>
+
+*Pair `x3`-`x4` in the linear example. Its three diagnostics are switched on one
+at a time. Dark blue: still allowed. Orange: ruled out by the diagnostic just
+added. Grey: already ruled out. Dashed line: the hull used for sampling. In the
+end 9.5% of the square is allowed.*
+
+### 2. Interlock: all pairs at once
+
+A full parameter set is acceptable only if it lies **inside every pair's
+region at the same time**. Pairs share parameters (`x0` appears in `x0-x1`,
+`x0-x12` and `x0-x2`), so a limit found in one pair also squeezes the others.
+
+The sampler draws uniform random points in the full parameter space and keeps
+only those that fall inside all hulls. Pairs are added one by one, the pairs
+with the most diagnostics first.
+
+<p align="center">
+  <img src="figs/constraint_interlock_first4pairs.png" width="520"
+       alt="First four rows of the constraint interlock figure">
+</p>
+
+*First 4 of 16 pairs (full figure: `figs/constraint_interlock.pdf`). Left: the
+region each pair allows on its own. Right: orange is that same region, and dark
+blue are the parameter sets finally drawn. In the bottom row, pair `x0-x2` alone
+allows 24% of its square, but the drawn samples cover only a quarter of that,
+because `x0` is already restricted by the pairs above it (`x0-x1`, `x0-x12`).*
+
+### 3. Excluding structural error
+
+Some observations cannot be matched by *any* parameter values: the model (or the
+observation) has a structural error. Forcing the method to fit them would push
+the parameters to wrong values or leave no samples at all. Such diagnostics are
+therefore removed, at three levels:
+
+| Level | Symptom | Action | Config keys | Listed as |
+|---|---|---|---|---|
+| **Single diagnostic** | Almost no parameter set passes it. (Diagnostics that *every* set passes are also removed, because they constrain nothing.) Emulator cannot reproduce the PPE. | Drop the diagnostic | `n_survive_threshold`, `emultor_error_ratio_threshold`, `vars_to_drop` (by hand) | `tight`, `useless`, `by_emulator_performance`, `by_name` |
+| **Within a pair** | Diagnostics of the same pair allow regions that (almost) do not overlap, so they cannot all be right | Drop the diagnostic most involved in the conflict, repeat until they overlap | `n_survive_threshold_2d`, `added_number_for_pairs` | `nooverlap2d` |
+| **Across pairs** | Adding a pair removes nearly every parameter set allowed by the earlier pairs | Keep only a subset of that pair's diagnostics, or skip the pair | `threshold_ratio_between_para_pairs` | `during_iteration` |
+
+Every dropped diagnostic is written to `output/<result_name>_dropped_vars.json`
+and drawn in `diagnostics/dropped_vars/`, so you can see what it would have said.
+
+---
+
+## Quick start
+
+The method runs as a **PBS batch job** (`qsub`).
+
+### 1. Install
+
+Python 3.10+:
 
 ```bash
-pip install -e .
+pip install -e .          # add [dev] for pytest, ruff, black
 ```
 
-Install with development dependencies:
+### 2. Choose a config
+
+`application/` has two ready-made examples:
+
+| Config | Input | Data |
+|---|---|---|
+| `config_table.json` | CSV tables of scalar diagnostics | `data/linear_example/` (in the repo; a synthetic linear model with known true parameters) |
+| `config_nc.json` | NetCDF fields, turned into zonal means and box averages | CAM PPE and satellite observations on NCAR GLADE |
+
+In the config you choose, set `working_dir` to a directory you can write to.
+`application/config_annotated.jsonc` explains every key.
+
+### 3. Edit and submit the job script
+
+In `application/submit_apply.pbs`:
+
+- set `#PBS -A` to your project code, and adjust the queue, `select` and
+  `walltime`;
+- set the `conda activate` line to your environment;
+- make the last line point to your config
+  (`--config config_table.json` or `--config config_nc.json`).
+
+Then submit, from the repository root or from inside `application/`:
 
 ```bash
-pip install -e .[dev]
+qsub application/submit_apply.pbs        # or: cd application && qsub submit_apply.pbs
 ```
 
-## Running the Pipeline
+Either way the job runs inside `application/`, so the relative data paths in
+`config_table.json` resolve to `data/linear_example/`. The job's output goes to
+`proj.log` in the directory you submitted from, and a copy of the pipeline log
+to `<working_dir>/<case_name>/diagnostics/run_log.txt`.
 
-There are two ways to run the workflow, both driven by the same JSON config
-and the same `build_case()` helper in `pipeline.py` (so a config change only
-needs to be made once):
+---
 
-### 1. PBS / qsub (recommended)
+## Configuring a run
 
-```bash
-qsub application/submit_apply.pbs
-```
+See `application/config_annotated.jsonc` for the full list. The keys you will
+change most often:
 
-`submit_apply.pbs` runs `proj2dhullsampler/run_apply.py --config
-application/apply_config.json`. Fill in `<PROJECT_CODE>` and adjust the
-`#PBS -q`/`select`/`walltime` directives for your case size. If you also
-drop `prepare_case.n_cpus` and `max_workers` from the config, the run uses
-whatever CPU count the job was actually granted (see "Worker counts" below)
-instead of requiring the PBS resource request and the JSON config to be kept
-in sync by hand.
+| Key | Meaning |
+|---|---|
+| `working_dir`, `case_name` | The case lives in `<working_dir>/<case_name>/` |
+| `result_name` | Prefix of the result files. Use a new one for each run on the same case |
+| `data_paths` | Parameter CSV plus either tables (`ppe_tab`, `obs_tab`) or NetCDF (`ppe_nc`, `obs_nc`), or both |
+| `threshold_level` | *k* in "observation within emulator mean ± *k* std". Larger = looser. Must be listed in `prepare_case.threshold_levels` |
+| `n_survive_threshold`, `n_survive_threshold_2d` | How few passing points count as "structural error" (per diagnostic / per pair), out of `n_sample` |
+| `threshold_ratio_between_para_pairs` | Smallest fraction of samples a new pair may keep before it counts as conflicting |
+| `n_max` | Maximum number of parameter sets to return |
 
-**`application/apply_config_annotated.txt` documents every field in
-`apply_config.json`** — check there first if you're unsure what a value
-does. It's a documentation-only copy; `run_apply.py` itself reads
-`apply_config.json`, not the annotated file.
+### Input formats
 
-With `"mode": "python"` (the mode `submit_apply.pbs` uses), `run_apply.py`
-switches matplotlib to the non-interactive `Agg` backend and tees all
-pipeline `print()` output to `<case_dir>/diagnostics/run_log.txt`, so a
-batch run's diagnostics survive without a display attached. See "Notebook
-vs. python mode" below for what else `mode` affects.
+- **Parameters** (`para`, always required): CSV, first column = member id,
+  one column per parameter.
+- **Tables** (`ppe_tab`, `obs_tab`): PPE CSV with the same member ids as rows and
+  one column per diagnostic; observation CSV with one row per diagnostic
+  (name, value).
+- **NetCDF** (`ppe_nc`, `obs_nc`): fields on (member, lat, lon) and (lat, lon).
+  `obs_dict` maps model to observation variable names; `lat_bins` and
+  `manual_regions` define the zonal bands and boxes that become diagnostics.
 
-### 2. Jupyter notebook (interactive)
+### Re-running a case
 
-`application/apply.ipynb` walks through the same steps as `run_apply.py`,
-calling the `HistoryMatching` API directly (see "Core Workflow" below). It
-tends to lag behind the PBS path a bit — treat it as the more outdated of
-the two — but it's still the easiest way to poke at intermediate data
-(masks, emulator outputs, hulls) interactively rather than only reading the
-saved diagnostics/log files from a batch run.
+Emulator training is the slow step, so it is done only once. If
+`<working_dir>/<case_name>` already exists, the run **loads** it and only
+repeats the steps after emulation. This makes it cheap to try other thresholds:
 
-### Worker counts
+- change the dropping/sampling keys and use a new `result_name`;
+- to try another `threshold_level`, it must already be in
+  `prepare_case.threshold_levels` when the case is created;
+- if the input data or `n_sample` change, use a new `case_name`.
 
-`prepare_case.n_cpus` (GP training parallelism) and `max_workers` (hull
-sampling parallelism) in the config are optional. If either is left out,
-`run_apply.py` falls back to the number of CPUs actually available to the
-process (`len(os.sched_getaffinity(0))`, which reflects a PBS/Slurm job's
-cgroup allocation, not just the whole node's core count). An explicit value
-in the config always takes precedence. The resolved values are printed (and,
-in `"python"` mode, logged to `run_log.txt`) at the start of each run.
+A re-run overwrites the figures and `run_log.txt` in `diagnostics/`.
 
-## Repository Layout
+---
+
+## What you get
 
 ```text
+<working_dir>/<case_name>/
+├── output/
+│   ├── <result_name>_all_para_realscale.csv / .nc    # drawn parameter sets (real units)
+│   ├── <result_name>_topn_para_realscale.csv / .nc   # first top_n of them (not ranked)
+│   ├── <result_name>_dropped_vars.json               # dropped diagnostics, by reason
+│   ├── <result_name>_specifications.json             # thresholds and final pair -> diagnostics
+│   └── diagnostic_2d_structural_error.csv            # overlap counts of conflicting diagnostic pairs
+├── diagnostics/
+│   ├── run_log.txt
+│   ├── visualize_check_<diagnostic>.png              # emulator checks
+│   ├── compare_with_original.png                     # PPE vs. drawn parameters
+│   ├── animations/pair_NN_<p1>__<p2>.gif             # pairwise constraints, one per pair
+│   ├── constraint_interlock.pdf                      # each pair alone vs. drawn samples
+│   └── dropped_vars/                                 # regions of the dropped diagnostics
+├── tabs/                  # parameter, PPE and observation tables actually used
+├── meta.csv               # the two sensitive parameters of each diagnostic
+├── y_emu/                 # emulator mean/std on the random parameter sets
+├── tf_masks_level_<k>.csv # pass/fail of every diagnostic at every random set
+└── sampled_parameters.nc, python_obj/, validation_error_ratio.csv, ...
+```
+
+Example figures from the linear case are in `figs/`.
+
+---
+
+## Repository layout
+
+```text
+application/
+├── config_table.json          # demo: table (CSV) input
+├── config_nc.json             # demo: NetCDF input
+├── config_annotated.jsonc     # every config key explained (documentation only)
+└── submit_apply.pbs           # PBS job script
 proj2dhullsampler/
-├── proj2dhullsampler/
-│   ├── prep_class.py
-│   ├── hm_class.py
-│   ├── pipeline.py       # build_case(): shared config-driven setup used by
-│   │                     # both run_apply.py and apply.ipynb
-│   ├── run_apply.py      # notebook-free, config-driven script
-│   ├── sampling_functions.py
-│   ├── preprocess.py
-│   ├── plotting.py
-│   ├── aux.py
-│   ├── utils.py
-│   └── unused_funs.py   # exploratory helpers kept for reference; not imported by the package
-├── application/
-│   ├── apply.ipynb        # interactive, notebook-mode walkthrough
-│   ├── apply_config.json  # example config for run_apply.py
-│   ├── apply_config_annotated.txt # field-by-field docs for apply_config.json
-│   └── submit_apply.pbs   # PBS job template for Casper/Derecho
-├── tests/
-├── pyproject.toml
-└── README.md
+├── run_apply.py               # entry point: python run_apply.py --config <file>
+├── pipeline.py                # build_case(): read inputs, create or load a case
+├── prep_class.py, utils.py    # diagnostics, sensitivity, GP emulators
+├── preprocess.py              # NetCDF fields -> zonal/box diagnostics
+├── hm_class.py                # HistoryMatching: masks, dropping, hulls, sampling
+├── sampling_functions.py      # hull sampler and the pair-by-pair interlock
+├── history_matching_animation.py  # animations, interlock and dropped-variable figures
+└── plotting.py, aux.py
+data/linear_example/           # synthetic test data (see its README)
+figs/                          # example figures used in this README
+tests/                         # unit tests and debugging notebooks
 ```
 
-## Core Workflow
+### Pipeline steps
 
-The code is structured around three stages.
+In the order `run_apply.py` calls them:
 
-### 1. Prepare a case directory
+| Step | `HistoryMatching` method | Config keys |
+|---|---|---|
+| Create (or load) the case, train emulators, write masks | `pipeline.build_case` | `data_paths`, `n_sample`, `prepare_case`, `threshold_level` |
+| Drop single diagnostics | `drop_by_name`, `drop_by_emulator_performance`, `drop_by_n_survive` | `vars_to_drop`, `emultor_error_ratio_threshold`, `n_survive_threshold` |
+| Group by pair, resolve conflicts inside pairs | `remove_var2d_auto`, `drop_by_nvar_per_pair` | `n_survive_threshold_2d`, `added_number_for_pairs`, `n_var_thre` |
+| Build hulls, add pairs one by one | `prepare_for_sampling` | `threshold_ratio_between_para_pairs`, `max_workers` |
+| Draw and save samples | `draw`, `save_samples_specifications`, `compare_with_original` | `n_pts`, `n_threshold`, `sample_threshold`, `n_max`, `result_name`, `top_n` |
+| Figures | `history_matching_animation` | `constraint_diagnostics` |
 
-`HistoryMatching` is the package entry point. Its `create_case` method creates
-the case folder, writes uniformly sampled normalized parameters, and builds
-tabular PPE and observation features. `prepare_case` then trains the emulators
-and creates masks for the configured uncertainty thresholds.
+---
 
-Expected inputs are typically:
-
-- `para`: parameter table as a `pandas.DataFrame`
-- `tabs`: optional tuple of already-tabulated `(ppe_tab, obs_tab)` data
-- `ppe`: PPE outputs as an `xarray.Dataset`
-- `obs`: observations as an `xarray.Dataset`
-- `obs_dict`: mapping from model variable names to observation variable names
-- `lat_bins`: latitude bins for zonal aggregation
-- `manul_ppe_info`: table describing manually selected regional averages
-
-Example:
-
-```python
-from proj2dhullsampler import HistoryMatching
-
-hm = HistoryMatching("/path/to/work", "case_a")
-hm.create_case(
-    para=parameter_table,
-    tabs=None,
-    ppe=ppe_ds,
-    obs=obs_ds,
-    obs_dict=obs_dict,
-    lat_bins=lat_bins,
-    manul_ppe_info=manual_regions,
-    n_sample=1_000_000,
-)
-
-hm.prepare_case(
-    {
-        "n_cpus": 15,
-        "threshold_levels": [2.0, 2.5],
-        "mode": "notebook",  # or "python"; see "Notebook vs. python mode" below
-    }
-)
-```
-
-`prepare_case`'s config controls `n_cpus`, `threshold_levels`, and (optionally)
-`mode`. The number of sensitive parameters retained per diagnostic (`n_sens_p`,
-default `2`) is not exposed through this path; to change it, call
-`hm.prep_case.sensitivity_emulation(n_sens_p=..., n_cpus=...)` directly
-before calling `hm.load_case()`.
-
-This creates a case directory like:
-
-```text
-case_a/
-├── sampled_parameters.nc
-├── meta.csv
-├── tabs/
-│   ├── parameters.csv
-│   ├── ppe_data.csv
-│   └── obs_data.csv
-├── y_emu/
-├── python_obj/
-├── class_obj/
-└── output/
-```
-
-### 2. Load masks and inspect emulator outputs
-
-For an existing case, `HistoryMatching` loads saved masks, metadata, emulator
-inputs, and feature tables.
-
-Example:
-
-```python
-from proj2dhullsampler import HistoryMatching
-
-hm = HistoryMatching(
-    working_dir="/path/to/work",
-    case_name="case_a",
-)
-
-hm.load_case()
-hm.load_mask(threshold_level=2.0)
-hm.visualize_check("PRECT_zonal_-30to30")
-```
-
-Typical files expected in the case directory at this stage include:
-
-- `tf_masks_level_<threshold>.csv`
-- `meta.csv`
-- `sampled_parameters.nc`
-- `tabs/parameters.csv`
-- `tabs/ppe_data.csv`
-- `tabs/obs_data.csv`
-- `y_emu/gp_mean_std_<variable>.csv`
-
-### 3. Run history matching and sample new parameters
-
-`HistoryMatching` filters out uninformative diagnostics, groups the remaining
-ones by their most sensitive parameter pair, resolves cases where the
-surviving regions for co-grouped diagnostics don't overlap, builds alpha-shape
-hulls, and draws new samples from the feasible region.
-
-Example (mirrors the order used in `application/apply.ipynb`):
-
-```python
-hm.drop_by_name(["local_PRECT_4_7_1_359"])   # drop diagnostics by name prefix
-hm.drop_by_n_survive(n_survive=50)           # drop diagnostics that are always/rarely satisfied
-hm.remove_var2d_auto(overlapping_threshold=10_000, added_num=100)  # resolve non-overlapping parameter-pair groups
-hm.drop_by_nvar_per_pair(n_var_thre=1)       # optional: drop pairs backed by too few diagnostics
-
-hm.prepare_for_sampling(
-    shape_alpha=5,
-    n_pts=10_000,
-    n_threshold=100,
-    sample_threshold=100_000,
-    max_workers=8,
-)
-hm.draw(
-    n_pts=50_000,
-    n_threshold=5_000,
-    sample_threshold=100_000_000,
-    max_workers=8,
-    n_max=1_000,
-)
-hm.save_samples_specifications(result_name="case_a", top_n=100)
-hm.compare_with_original()  # optional: sanity-check sampled vs. original PPE parameter ranges
-```
-
-`remove_var2d_auto` calls `group_para_climatology` (grouping diagnostics by
-sensitive parameter pair) and `shuffle_vars` (checking pairwise overlap within
-each group) internally and iterates until no non-overlapping groups remain.
-On each iteration it drops the diagnostic most implicated among variable
-pairs whose overlap falls below a pairwise threshold (which starts equal to
-`overlapping_threshold`). If a flagged group's *combined* intersection is
-below `overlapping_threshold` but every individual pair within it is not
-(a 3+-way interaction effect the pairwise check alone can't see), no pair
-qualifies that iteration; the pairwise threshold is then relaxed by
-`added_num` and the same group is re-evaluated on the next iteration, until
-something qualifies. If `no_iter` iterations are exhausted with groups still
-unresolved, it raises `ValueError` rather than returning silently. Call
-`group_para_climatology` directly only if you need the grouping without the
-overlap-resolution loop.
-
-The final saved outputs are written under `case_a/output/`, including:
-
-- `<result_name>_all_para_realscale.csv`
-- `<result_name>_all_para_realscale.nc`
-- `<result_name>_topn_para_realscale.csv`
-- `<result_name>_topn_para_realscale.nc`
-- `<result_name>_specifications.json`
-- `<result_name>_dropped_vars.json`
-
-## Notebook vs. python mode
-
-`HistoryMatching` accepts a `mode` of `"notebook"` (the default) or `"python"`,
-set either at construction (`HistoryMatching(working_dir, case_name, mode=...)`)
-or via the `"mode"` key in the dict passed to `prepare_case` (which overrides
-whatever was set at construction). It affects the two methods that produce
-checkup figures during the workflow, `visualize_check` and
-`compare_with_original`:
-
-- `"notebook"`: figures are shown inline with `plt.show()`, as before.
-- `"python"`: figures are saved as PNGs to `<case_dir>/diagnostics/` instead of
-  being displayed, and the figure `Axes` are closed afterward to avoid leaking
-  memory across a long-running script.
-
-`mode` only controls figure display/saving. It doesn't affect any of the
-`print()`-based status messages elsewhere in the pipeline (e.g. in
-`remove_var2d_auto` or the sensitivity-emulation step); those still go to
-stdout regardless of mode.
-
-## Public API
-
-The package exposes one public class:
-
-- `HistoryMatching`: create and prepare cases, filter diagnostics, build hulls,
-  and generate candidate parameter samples.
-
-The functions in the other package modules support `HistoryMatching` internally
-and are not part of the stable top-level API.
-
-## Development
-
-Run the basic checks from the repository root:
+## Development and testing
 
 ```bash
+python -m pytest -q tests
 ruff check .
 black --check .
-pytest
 ```
 
-## Notes
+The notebooks in `tests/` (`apply.ipynb`, `test_hull_sample.ipynb`) are for
+testing and debugging the method interactively. They are not a supported way
+to run it.
 
-- The application entry points are `proj2dhullsampler/run_apply.py`
-  (batch/PBS, driven by `application/apply_config.json`) and
-  `application/apply.ipynb` (interactive); both cover the same workflow
-  described above via the shared `build_case()` helper. See "Running the
-  Pipeline" above.
-- Most geometry operations assume parameters have been normalized to the
-  `[0, 1]` range before hull construction and sampling.
-- `apply_config.json` has two separate sets of sampling knobs:
-  `testing_n_pts`/`testing_n_threshold`/`testing_sample_threshold` are passed
-  to `prepare_for_sampling()` (hull construction/orchestration), while
-  `n_pts`/`n_threshold`/`sample_threshold` are passed to `draw()` (final
-  sample generation) — see `apply_config_annotated.txt` for what each one
-  controls. `shape_alpha` is not exposed in the config and stays at
-  `HistoryMatching.prepare_for_sampling`'s default (`5`) for both stages.
-- The emulator "validation" error ratio (`validation_error_ratio.csv`, used
-  by `drop_by_emulator_performance`/`emultor_error_ratio_threshold`) is
-  currently computed by evaluating each GP on the same data it was trained
-  on, not a held-out split — treat it as an in-sample fit-quality check
-  rather than a generalization estimate.
+### Notes
+
+- The emulator error check (`validation_error_ratio.csv`) uses the training
+  members themselves, so `emultor_error_ratio_threshold` rarely removes anything.
+- No random seeds are set, so repeated runs give slightly different samples.
