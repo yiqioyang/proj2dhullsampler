@@ -1,0 +1,40 @@
+{
+  "mode": "python",                                                                                   
+  "working_dir": "/glade/work/qingyuany/repo_data/tabular_test",
+  "case_name": "linear_test",
+  "result_name": "result",                                                                    
+  "data_paths": {
+    "obs_nc": null,   
+    "obs_tab": "../data/linear_example/y_true.csv",                                                                                  
+    "para": "../data/linear_example/X.csv",
+    "ppe_nc": null,                                     
+    "ppe_tab": "../data/linear_example/Y.csv"                                                                                   
+  },
+
+  "obs_dict": null,
+
+  "lat_bins": null,                                                 
+
+  "manual_regions": null,
+
+  "n_sample": 100000,
+
+  "prepare_case": {"n_cpus": 32, "threshold_levels": [2.5]},                                           
+  "threshold_level": 2.5,                                                                             
+  "emultor_error_ratio_threshold": 0.20,                                                              
+  "visualize_check_vars": ["y0", "y1", "y2", "y3", "y4", "y5"],   
+  "vars_to_drop": [],                                                                    
+  "n_survive_threshold": 5000,
+  "n_survive_threshold_2d": 5000,                                                                    
+  "added_number_for_pairs": 100,                                                                      
+  "n_var_thre": 0,                                                                                    
+  "max_workers": 32,                                                                                                                                          
+  "n_pts": 500000,                                                                                     
+  "n_threshold": 300,
+  "threshold_ratio_between_para_pairs": 0.02,
+  "sample_threshold": 10000000000,                                                                     
+  "n_max": 1000,                                                                                      
+  "top_n": 100                                                                                        
+}
+
+
