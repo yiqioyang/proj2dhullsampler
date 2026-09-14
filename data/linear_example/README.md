@@ -26,7 +26,7 @@ Each dataset contains:
 - `Y.csv` — simulated model outputs
 - `y_true.csv` — ground-truth observation vector
 - `.nc` file — complete dataset, including the above 4 elements, the coefficient matrix A and other useful information. 
-There are x_b and y_b within the nc file, which are used to generate structural error (see below).
+
 
 ## Dataset Dimensions
 

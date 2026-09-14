@@ -12,6 +12,10 @@ It returns a set of new parameter values (real units, CSV and NetCDF) that are
 consistent with *all* the observations it could trust, plus figures that show
 why each parameter ended up where it did.
 
+The method excludes variables that it cannot trust for various reasons such as 
+emulator performance, structural error-prone. 
+
+
 <p align="center">
   <img src="figs/compare_with_original.png" width="900"
        alt="Parameter distributions: original PPE vs. drawn samples">
@@ -72,8 +76,9 @@ region at the same time**. Pairs share parameters (`x0` appears in `x0-x1`,
 `x0-x12` and `x0-x2`), so a limit found in one pair also squeezes the others.
 
 The sampler draws uniform random points in the full parameter space and keeps
-only those that fall inside all hulls. Pairs are added one by one, the pairs
-with the most diagnostics first.
+only those that fall inside all hulls. Before the final draw, the pairs are
+added one at a time (most diagnostics first) to check that each new pair still
+leaves some room next to the earlier ones (see level 3 below).
 
 <p align="center">
   <img src="figs/constraint_interlock_first4pairs.png" width="520"
@@ -95,12 +100,13 @@ therefore removed, at three levels:
 
 | Level | Symptom | Action | Config keys | Listed as |
 |---|---|---|---|---|
-| **Single diagnostic** | Almost no parameter set passes it. (Diagnostics that *every* set passes are also removed, because they constrain nothing.) Emulator cannot reproduce the PPE. | Drop the diagnostic | `n_survive_threshold`, `emultor_error_ratio_threshold`, `vars_to_drop` (by hand) | `tight`, `useless`, `by_emulator_performance`, `by_name` |
+| **Single diagnostic** | Almost no parameter set passes it. (Also removed at this step, though not structural error: diagnostics that *every* set passes, since they constrain nothing; diagnostics whose emulator fits the PPE poorly; diagnostics you exclude by hand.) | Drop the diagnostic | `n_survive_threshold`, `emultor_error_ratio_threshold`, `vars_to_drop` | `tight`, `useless`, `by_emulator_performance`, `by_name` |
 | **Within a pair** | Diagnostics of the same pair allow regions that (almost) do not overlap, so they cannot all be right | Drop the diagnostic most involved in the conflict, repeat until they overlap | `n_survive_threshold_2d`, `added_number_for_pairs` | `nooverlap2d` |
 | **Across pairs** | Adding a pair removes nearly every parameter set allowed by the earlier pairs | Keep only a subset of that pair's diagnostics, or skip the pair | `threshold_ratio_between_para_pairs` | `during_iteration` |
 
-Every dropped diagnostic is written to `output/<result_name>_dropped_vars.json`
-and drawn in `diagnostics/dropped_vars/`, so you can see what it would have said.
+Every dropped diagnostic is listed in `output/<result_name>_dropped_vars.json`.
+Its region is drawn in `diagnostics/dropped_vars/`, so you can see what it would
+have said, unless it passes everywhere or nowhere (then there is nothing to outline).
 
 ---
 
@@ -123,7 +129,7 @@ pip install -e .          # add [dev] for pytest, ruff, black
 | Config | Input | Data |
 |---|---|---|
 | `config_table.json` | CSV tables of scalar diagnostics | `data/linear_example/` (in the repo; a synthetic linear model with known true parameters) |
-| `config_nc.json` | NetCDF fields, turned into zonal means and box averages | CAM PPE and satellite observations on NCAR GLADE |
+| `config_nc.json` | NetCDF fields, turned into zonal means and box averages | CAM PPE and satellite observations on NCAR GLADE (paths point to the maintainer's directories; replace them with your own files) |
 
 In the config you choose, set `working_dir` to a directory you can write to.
 `application/config_annotated.jsonc` explains every key.
@@ -171,8 +177,8 @@ change most often:
 - **Parameters** (`para`, always required): CSV, first column = member id,
   one column per parameter.
 - **Tables** (`ppe_tab`, `obs_tab`): PPE CSV with the same member ids as rows and
-  one column per diagnostic; observation CSV with one row per diagnostic
-  (name, value).
+  one column per diagnostic; observation CSV with a header row, then one row
+  per diagnostic (name, value).
 - **NetCDF** (`ppe_nc`, `obs_nc`): fields on (member, lat, lon) and (lat, lon).
   `obs_dict` maps model to observation variable names; `lat_bins` and
   `manual_regions` define the zonal bands and boxes that become diagnostics.
@@ -189,6 +195,9 @@ repeats the steps after emulation. This makes it cheap to try other thresholds:
 - if the input data or `n_sample` change, use a new `case_name`.
 
 A re-run overwrites the figures and `run_log.txt` in `diagnostics/`.
+
+If a job crashed while the case was being created, delete the half-built case
+directory before resubmitting; otherwise it is loaded as if it were complete.
 
 ---
 
@@ -246,7 +255,7 @@ tests/                         # unit tests and debugging notebooks
 
 In the order `run_apply.py` calls them:
 
-| Step | `HistoryMatching` method | Config keys |
+| Step | Function (`HistoryMatching` methods unless noted) | Config keys |
 |---|---|---|
 | Create (or load) the case, train emulators, write masks | `pipeline.build_case` | `data_paths`, `n_sample`, `prepare_case`, `threshold_level` |
 | Drop single diagnostics | `drop_by_name`, `drop_by_emulator_performance`, `drop_by_n_survive` | `vars_to_drop`, `emultor_error_ratio_threshold`, `n_survive_threshold` |

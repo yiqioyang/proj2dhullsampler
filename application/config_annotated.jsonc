@@ -6,8 +6,8 @@
 // copy one of the two real configs and edit that instead.
 //
 // Relative paths are resolved from the directory the job runs in. With
-// submit_apply.pbs that is application/ (the job does `cd $PBS_O_WORKDIR`),
-// so submit from inside application/.
+// submit_apply.pbs that is always application/, whether you submit from the
+// repository root or from application/ itself.
 // =============================================================================
 {
   // ---------------------------------------------------------------------------
